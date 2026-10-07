@@ -32,19 +32,17 @@ Read the message, do the fix, try again.
 - **go mod tidy -diff** (CI): run `go mod tidy` and commit `go.mod` and `go.sum`.
 
 ## Setting up the repository (admin, once)
-Do these in order on a fresh clone, then commit.
-1. **Module path.** Replace `github.com/myorg/workspace` everywhere (portable: `-i.bak` then delete the backups):
+On a fresh clone, from the workspace root:
 
-       grep -rl --include='*.go' --include='go.mod' --include='*.yml' --include='*.md' 'github.com/myorg/workspace' . \
-         | xargs sed -i.bak 's#github.com/myorg/workspace#github.com/<org>/<repo>#g' && find . -name '*.bak' -delete
+    make adopt MODULE=github.com/<org>/<repo> MAKERS="<names or roles>"
 
-2. **Example bricks.** Delete `components/greeting`, `bases/api`, `projects/hello`, and the marked block in `README.md`. The layout directories keep their `.keep` files. This removes two public surfaces nothing uses, so commit it with `[interface-impact: none]` in the message.
-3. **Inherited tag.** If you cloned instead of using GitHub's **Use this template** button: `git tag -d stable-template-baseline`. Tag your own first known-good state later with `git tag -a stable-1 -m "..."`; `poly diff` uses the newest `stable-*` tag.
-4. **LICENSE.** Replace the copyright holder, or the license.
-5. **ADRs 0001 to 0010** are the decisions this template is built on. Adopting the template adopts them: set each one's `date:` to the day you adopt it and replace `[you]` in `decision-makers:` with the names or roles that did. Supersede any you later reverse with a new ADR.
-6. **Branch protection** (GitHub): Settings > Branches > Add rule for `main`; require a pull request; require the **checks** workflow to pass. This is what makes CI a gate rather than advice.
+It prints its plan and then: rewrites the module path everywhere; deletes the example bricks (`components/greeting`, `bases/api`, `projects/hello`) and the marked example block in `README.md`; deletes the template's baseline tag; dates ADRs 0001 to 0010 today and sets their `decision-makers` to `MAKERS` (adopting the template adopts its decisions; omit `MAKERS` to do that later by hand); regenerates the ADR index. `go run ./tools/poly adopt --module ... --dry-run` shows the plan without changing anything; `--keep-examples` keeps the example bricks.
 
-`make all` must be green after step 2 with zero bricks; it is.
+Then:
+1. `make all` (green with zero bricks), review `git status`, and commit with the message `adopt` printed. It ends in `[interface-impact: none]`, which is honest: the removed example bricks had no consumers.
+2. Replace the copyright holder or the license in `LICENSE`.
+3. Tag your first known-good state later with `git tag -a stable-1 -m "..."`; `poly diff` uses the newest `stable-*` tag.
+4. Branch protection (GitHub): Settings > Branches > Add rule for `main`; require a pull request; require the **checks** workflow to pass. This is what makes CI a gate rather than advice.
 
 ## Why all of this
 Context that lives next to the code and is kept true by checks is worth more than documents that drift. `AGENTS.md` has the map of where every kind of context lives; `docs/adr/` has the decisions.

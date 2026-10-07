@@ -4,7 +4,7 @@ Read this file before touching any code in this repository. It tells you what th
 Quick routes:
 - Setting up a fresh clone: run `make hooks` (CONTRIBUTING.md > One-time setup).
 - Creating a brick or a project: README.md > Create new bricks. There is no scaffolding command.
-- Adopting this template for a new repository: CONTRIBUTING.md > Setting up the repository.
+- Adopting this template for a new repository: `make adopt MODULE=<path>` (CONTRIBUTING.md > Setting up the repository).
 - Recording a decision: `go run ./tools/poly adr new "<title>"`.
 
 ## What this is
@@ -163,7 +163,7 @@ CI blocks a pull request in which a brick's exported surface changed and nothing
 ## What is enforced vs trusted
 Two layers. This file is the soft layer: it catches gaps in conversation. The gates are the hard layer: they block non-compliant changes regardless of who made them.
 
-Hard gates, local (`.githooks/pre-commit`, enabled by `make hooks`), in order: gofmt on staged files; `poly check`; `go vet ./...`; `go test ./...`; `poly adr lint`; the ADR index regenerated and staged for you; the interface heads-up (prints, never blocks); golangci-lint (required install; the hook fails without it).
+Hard gates, local (`.githooks/pre-commit`, enabled by `make hooks`), in order: gofmt on staged files; `poly check`; `go vet ./...`; the same Polylith rules as a vet analyzer (`tools/polyvet`, file:line at the import); `go test ./...`; `poly adr lint`; the ADR index regenerated and staged for you; the interface heads-up (prints, never blocks); golangci-lint (required install; the hook fails without it).
 
 Hard gates, CI (`.github/workflows/checks.yml`), required by branch protection on `main`: `go mod tidy -diff`; `go build ./...`; `poly check`; `go test -race -shuffle=on ./...`; golangci-lint; `poly adr lint`; `poly interface --mode ci` (blocks an unrecorded surface change); `govulncheck`.
 
