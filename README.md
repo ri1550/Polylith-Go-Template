@@ -1,5 +1,5 @@
 # Workspace
-A Polylith monorepo in Go. Code lives as small bricks (components and bases) that projects assemble into deployables, and the repository keeps its own context, so a human or a coding agent can learn why any part is the way it is in four cheap reads.
+A Polylith monorepo in Go. Code lives as small bricks (components and bases) that projects assemble into deployables, and the repository keeps its own context, so a human or a coding agent can learn what any part is for and why it is the way it is in five cheap reads.
 
 If you are a coding agent: read `AGENTS.md` first. It is the operating manual.
 

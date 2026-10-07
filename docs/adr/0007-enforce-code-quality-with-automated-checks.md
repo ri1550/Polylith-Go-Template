@@ -30,7 +30,7 @@ The codebase needs to stay architecturally sound, compiling and lint-clean as it
 - Any of the above, locally by convention only, hooks only, CI only, or both layers
 
 ## Decision outcome
-Chosen option: Both layers, following the same approach as ADR-0006. The checks are `go build ./...` and `go vet ./...` (the compiler is the type checker; vet catches the classic mistakes), `go test ./...` (behavioral guarantees, in CI), `go run ./tools/poly check` (brick boundaries and layout), and `golangci-lint` with its standard linter set (`errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`) plus `testpackage`, with `gofmt` and `goimports` as formatters. `golangci-lint` is configured in `.golangci.yml`; the pre-commit hook runs it when it is installed and CI always runs it.
+Chosen option: Both layers, following the same approach as ADR-0006. The checks are `go build ./...` and `go vet ./...` (the compiler is the type checker; vet catches the classic mistakes), `go test ./...` (behavioral guarantees, in CI), `go run ./tools/poly check` (brick boundaries and layout), and `golangci-lint` with its standard linter set (`errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`) plus `testpackage`, with `gofmt` and `goimports` as formatters. `golangci-lint` is configured in `.golangci.yml`; the pre-commit hook and CI both run it (ADR-0010 made it a required install).
 
 `golangci-lint` over separate tools because it bundles the ones we would otherwise run one by one, caches well, and has first-class editor and GitHub Actions integration, so inline feedback matches what CI blocks. `testpackage` is enabled because tests in an external `_test` package can only reach the exported API, which makes "test at the interface" a checked rule rather than advice. The in-repo tooling under `tools/` is exempt from `testpackage` because it is `package main` and tests its own helpers.
 
@@ -38,7 +38,7 @@ Chosen option: Both layers, following the same approach as ADR-0006. The checks 
 - Good: architectural violations, compile errors, test failures and lint findings are all caught before code reaches `main`.
 - Good: fast local feedback reduces failed CI runs; `go build` and `go vet` need nothing beyond the Go toolchain.
 - Good: editor and gate use the same linter, so inline feedback matches what CI blocks.
-- Bad: `golangci-lint` is an extra install for local use. The hook degrades gracefully (skips with a notice) when it is missing; CI still blocks.
+- Bad: `golangci-lint` is an extra install for local use. The hook originally skipped it with a notice when missing; ADR-0010 made the hook fail instead, so local and CI results match.
 - Neutral: the standard linter set is a starting point; stricter linters can be enabled as the codebase grows.
 
 ### Confirmation

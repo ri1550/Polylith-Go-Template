@@ -35,7 +35,7 @@ Two trees give two sorted lists; the difference is the change. Renaming a local,
 `check` reads the package graph from `go list -e`, which parses only import headers. It reports packages that fail to load (import cycles, missing packages) but is not a compiler; the hook runs it first so the Polylith rule speaks before `go vet` does on a cycle.
 
 ## Dependencies
-`go.yaml.in/yaml/v3` for ADR front matter. Everything else is the standard library, `go list` and `git`.
+`go.yaml.in/yaml/v3` for ADR front matter and the queue; `golang.org/x/tools` for the `polyvet` analyzer. Everything else is the standard library, `go list` and `git`.
 
 ## Editing a check
-Every rule has a test in this directory; add one for any rule you add. If you change what a check enforces, update `AGENTS.md` and `CONTRIBUTING.md` in the same commit, and write an ADR if the change is a decision.
+Every rule has a test in this directory; add one for any rule you add. If you change what a check enforces, update `AGENTS.md` and `CONTRIBUTING.md` in the same commit, and tell the developer so they can decide whether it deserves an ADR.

@@ -29,7 +29,7 @@ This workspace's process leans on tooling: validating brick boundaries, showing 
 - Port the Clojure `poly` tool's command set wholesale
 
 ## Decision outcome
-Chosen option: a small Go program at `tools/poly`, run with `go run ./tools/poly <command>`, in the same module and checked by the same compiler, tests and linter as everything else. It provides `check` (layout and import-direction rules over `go list -json`), `deps` (what each brick uses, what each project pulls in), `diff` (bricks and projects changed since the last `stable-*` tag), `interface` (the exported API of every brick root package, diffed between two git trees), `adr lint` and `adr index`.
+Chosen option: a small Go program at `tools/poly`, run with `go run ./tools/poly <command>`, in the same module and checked by the same compiler, tests and linter as everything else. At first it provided `check` (layout and import-direction rules over `go list -json`), `deps` (what each brick uses, what each project pulls in), `diff` (bricks and projects changed since the last `stable-*` tag), `interface` (the exported API of every brick root package, diffed between two git trees), `adr lint` and `adr index`. The command set has grown since (`adr new`, `adopt`, `spec lint`, `spec status`, the `polyvet` analyzer); `tools/poly/README.md` is the current list.
 
 The interface check parses each brick's root package with `go/parser` at two git trees (via `git show`, no checkout needed), renders every exported declaration without bodies or comments, and reports the lines added or removed. It therefore reacts to exactly what consumers can see, including additive changes that `apidiff` would call compatible but that the process still wants recorded, and ignores renamed locals, reformatting and new comments. `apidiff` needs both versions type-checked and built, which is slower and heavier for the same question. `depguard` can express most of the import rules but not "a base may import its own subpackages and no other base", and file-path heuristics for interface changes would fire on every implementation edit in a root package. Porting the Clojure tool's full command set would carry over features (per-project dependency validation, packaging, profiles) that Go's single module makes unnecessary (ADR-0004).
 
@@ -38,8 +38,8 @@ Scaffolding (`create`) and an `info` overview were deliberately left out: a bric
 ### Consequences
 - Good: every rule the process depends on is executable, versioned with the code, and readable by anyone who can read Go.
 - Good: interface detection is exact, so `[interface-impact: none]` is rarely needed and its misuse stands out.
-- Bad: the tool is ours to maintain. At the time of writing it is about 1441 lines of source and 284 lines of tests, and it is the only Go-specific moving part in the template.
-- Neutral: the tool depends on `go.yaml.in/yaml/v3` (the maintained fork of the archived `gopkg.in/yaml.v3`) for ADR front matter; that requirement sits in the shared `go.mod` but is linked only into the tool.
+- Bad: the tool is ours to maintain. It is the only Go-specific moving part in the template, and every rule it enforces has a test beside it.
+- Neutral: the tool depends on `go.yaml.in/yaml/v3` (the maintained fork of the archived `gopkg.in/yaml.v3`) for ADR front matter and the queue, and the analyzer on `golang.org/x/tools`; those requirements sit in the shared `go.mod` but are linked only into the tools.
 
 ### Confirmation
 `go test ./tools/poly/...` pins the rules: every import-direction rule has a rejecting case, the surface extraction has a fixture, and the ADR lint has failing fixtures. `tools/poly/README.md` lists each command. The hook and CI call the tool, so a regression in it fails the gate it implements.
