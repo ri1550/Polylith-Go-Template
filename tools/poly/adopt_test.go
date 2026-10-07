@@ -28,6 +28,7 @@ func TestAdoptPlanRewritesDeletesAndDates(t *testing.T) {
 	write("components/keep/keep.go", "package keep\n\nimport _ \""+oldMod+"/components/greeting\"\n")
 	write("bases/api/api.go", "package api\n")
 	write("projects/hello/main.go", "package main\n\nimport _ \""+oldMod+"/bases/api\"\n\nfunc main() {}\n")
+	write("docs/spec/greeting.md", "# Greeting\n")
 	write("README.md", "# W\n\nintro\n\n<!-- examples:start (x) -->\nexample stuff\n<!-- examples:end -->\n\n## Next\n")
 	write(".golangci.yml", "local-prefixes:\n  - "+oldMod+"\n")
 	write("docs/adr/0000-adr-template.md", templateADR)

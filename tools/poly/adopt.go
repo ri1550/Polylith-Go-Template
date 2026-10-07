@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	exampleUnits = []string{"components/greeting", "bases/api", "projects/hello"}
+	exampleUnits = []string{"components/greeting", "bases/api", "projects/hello", "docs/spec/greeting.md"}
 	rewriteExts  = map[string]bool{".go": true, ".md": true, ".yml": true, ".yaml": true, ".mod": true}
 	skipDirs     = map[string]bool{".git": true, "bin": true, "dist": true}
 )

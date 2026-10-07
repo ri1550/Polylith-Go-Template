@@ -1,0 +1,17 @@
+# The build queue: which spec rules to implement, in what order. Read and written
+# by the agent; the developer hears it, they do not read it. Every step is a
+# range of rules in docs/spec/, grouped for one brick. Nothing here restates the
+# spec, and nothing is written about progress: a step's state is derived from
+# which of its rules have a citing test (`go run ./tools/poly spec status`), and
+# a finished step is deleted, not ticked. Git history is the record.
+#
+# A step exists only because the developer asked for the work or a queued step
+# depends on it. No speculative steps. Chores that cite no rule do not go here.
+#
+# steps:
+# - id: short-kebab-id
+#   rules: {<domain>: "1-3"}            # required: <domain>: "n" or "lo-hi"
+#   brick: components/<name>            # optional
+#   after: another-step-id              # optional, an earlier step
+
+steps: []

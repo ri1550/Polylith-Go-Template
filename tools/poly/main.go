@@ -29,6 +29,8 @@ Usage (from the workspace root):
                                              turn a fresh clone of the template into your workspace
   go run ./tools/poly adr lint               validate the decision log under docs/adr/
   go run ./tools/poly adr index              regenerate docs/adr/index/
+  go run ./tools/poly spec lint              validate docs/spec/ and docs/queue.yaml
+  go run ./tools/poly spec status            what works (rules with a citing test) and what is next, derived
 
 See AGENTS.md for the rules these commands enforce.
 `
@@ -55,6 +57,20 @@ func main() {
 		code, err = runInterface(args[1:])
 	case "adopt":
 		code, err = runAdopt(args[1:])
+	case "spec":
+		if len(args) < 2 {
+			fmt.Fprint(os.Stderr, usage)
+			os.Exit(2)
+		}
+		switch args[1] {
+		case "lint":
+			code, err = runSpecLint()
+		case "status":
+			code, err = runSpecStatus()
+		default:
+			fmt.Fprint(os.Stderr, usage)
+			os.Exit(2)
+		}
 	case "adr":
 		if len(args) < 2 {
 			fmt.Fprint(os.Stderr, usage)

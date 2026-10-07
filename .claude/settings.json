@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && go run ./tools/poly spec status 2>/dev/null || true",
+            "timeout": 15,
+            "statusMessage": "Reading the spec status and the queue"
+          }
+        ]
+      }
+    ]
+  }
+}
