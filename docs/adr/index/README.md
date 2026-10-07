@@ -10,8 +10,11 @@ Generated view of the decision log. Do not edit by hand; run `go run ./tools/pol
 - [ADR-0006: Enforce the context system with automated checks](../0006-enforce-the-process-with-automated-checks.md) (accepted)
 - [ADR-0007: Enforce code quality with automated checks](../0007-enforce-code-quality-with-automated-checks.md) (accepted)
 - [ADR-0008: Build the Polylith tooling in the repository](../0008-build-polylith-tooling-in-repo.md) (accepted)
+- [ADR-0009: Projects are the composition root](../0009-projects-are-the-composition-root.md) (accepted)
+- [ADR-0010: Make the gates exact](../0010-make-the-gates-exact.md) (accepted)
+- [ADR-0011: Example functions are the usage layer](../0011-example-functions-are-the-usage-layer.md) (accepted)
 
 ## By brick
-- base `*`: [bases-_all_.md](bases-_all_.md) (5)
-- component `*`: [components-_all_.md](components-_all_.md) (5)
-- project `*`: [projects-_all_.md](projects-_all_.md) (6)
+- base `*`: [bases-_all_.md](bases-_all_.md) (8)
+- component `*`: [components-_all_.md](components-_all_.md) (8)
+- project `*`: [projects-_all_.md](projects-_all_.md) (8)

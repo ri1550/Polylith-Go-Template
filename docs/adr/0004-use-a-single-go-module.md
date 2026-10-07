@@ -1,7 +1,7 @@
 ---
 status: accepted
-date: YYYY-MM-DD
-decision-makers: [you]
+date: 2026-10-07
+decision-makers: [template author]
 consulted: []
 informed: []
 affects:
