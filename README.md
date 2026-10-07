@@ -22,7 +22,7 @@ The example project wires the `greeting` component into the `api` base:
 
 ## Common commands
 
-    make check                         # layout and boundaries, type check, decision log, tidy go.mod
+    make check                         # layout and boundaries, vet (incl. the Polylith analyzer), decision log, tidy go.mod
     make test                          # go test -race -shuffle=on ./...
     make lint                          # golangci-lint
     make build                         # every project into bin/
@@ -31,6 +31,7 @@ The example project wires the `greeting` component into the `api` base:
     go run ./tools/poly diff           # bricks and projects changed since the last stable-* tag
     go run ./tools/poly interface      # exported API changes in the staged tree
     go run ./tools/poly adr new "..."  # start a decision record
+    make adopt MODULE=...              # once, on a fresh clone: make the template yours
 
 ## Create new bricks
 A brick is a directory with a Go package in it; there is no scaffolding command.
@@ -60,4 +61,4 @@ Rules in one line each (full version in `AGENTS.md`): components import only com
     tools/poly/    the in-repo Polylith tool and checks
 
 ## Namespace
-The module path in `go.mod` (`github.com/myorg/workspace`) is the namespace. `CONTRIBUTING.md` > Setting up the repository has the rename command.
+The module path in `go.mod` (`github.com/myorg/workspace`) is the namespace. `make adopt MODULE=<your path>` renames it everywhere (`CONTRIBUTING.md` > Setting up the repository).

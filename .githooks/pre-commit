@@ -30,6 +30,11 @@ go run ./tools/poly check
 step "go vet ./..."
 go vet ./...
 
+# The same Polylith rules as poly check, reported at the import with file:line.
+step "go vet -vettool=polyvet ./..."
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+go build -o "$tmp/polyvet" ./tools/polyvet && go vet -vettool="$tmp/polyvet" ./...
+
 step "go test ./..."
 go test ./...
 

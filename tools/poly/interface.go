@@ -45,7 +45,8 @@ func brickSources(tree string) (map[string]map[string][]byte, error) {
 // surfaceChange is the difference in one brick's public interface between two trees.
 type surfaceChange struct {
 	Brick   string // components/<name> or bases/<name>
-	Status  string // "new", "removed" or "changed"
+	From    string // the brick's previous path when Status is a rename, else ""
+	Status  string // "new", "removed", "changed", "renamed" or "renamed, changed"
 	Removed []string
 	Added   []string
 }
@@ -53,10 +54,54 @@ type surfaceChange struct {
 // Name returns the bare brick name.
 func (c surfaceChange) Name() string { return path.Base(c.Brick) }
 
+// FormerName returns the bare name the brick had before a rename, or "".
+func (c surfaceChange) FormerName() string {
+	if c.From == "" {
+		return ""
+	}
+	return path.Base(c.From)
+}
+
 // Kind returns the affects key for the brick: "components" or "bases".
 func (c surfaceChange) Kind() string { return path.Dir(c.Brick) }
 
-// surfaceChanges compares the public interface of every brick between two git trees.
+// brickRenames asks git which brick root packages moved between two trees,
+// keyed old brick path to new brick path.
+func brickRenames(oldTree, newTree string) map[string]string {
+	lines, err := gitLines("diff", "--name-status", "-M", oldTree, newTree, "--", "components", "bases")
+	if err != nil {
+		return nil
+	}
+	renames := map[string]string{}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "R") {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) != 3 {
+			continue
+		}
+		oldBrick, ok1 := rootBrick(parts[1])
+		newBrick, ok2 := rootBrick(parts[2])
+		if ok1 && ok2 && oldBrick != newBrick {
+			renames[oldBrick] = newBrick
+		}
+	}
+	return renames
+}
+
+// rootBrick returns the brick path of a root-package Go file, if that is what p is.
+func rootBrick(p string) (string, bool) {
+	parts := strings.Split(p, "/")
+	if len(parts) != 3 || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+		return "", false
+	}
+	return parts[0] + "/" + parts[1], true
+}
+
+// surfaceChanges compares the public interface of every brick between two git
+// trees. A brick that git saw move is reported once, as a rename, with any
+// surface difference between its old and new location.
 func surfaceChanges(oldTree, newTree string) ([]surfaceChange, error) {
 	oldSrc, err := brickSources(oldTree)
 	if err != nil {
@@ -66,38 +111,70 @@ func surfaceChanges(oldTree, newTree string) ([]surfaceChange, error) {
 	if err != nil {
 		return nil, err
 	}
-	bricks := map[string]bool{}
-	for b := range oldSrc {
-		bricks[b] = true
+	before := map[string][]string{}
+	for b, src := range oldSrc {
+		if before[b], err = surface(src); err != nil {
+			return nil, fmt.Errorf("%s at %s: %w", b, oldTree, err)
+		}
 	}
-	for b := range newSrc {
-		bricks[b] = true
+	after := map[string][]string{}
+	for b, src := range newSrc {
+		if after[b], err = surface(src); err != nil {
+			return nil, fmt.Errorf("%s at %s: %w", b, newTree, err)
+		}
 	}
+	renames := brickRenames(oldTree, newTree)
+	return pairChanges(before, after, renames), nil
+}
 
+// pairChanges turns before/after surfaces into one change per brick,
+// folding git-detected renames into a single entry.
+func pairChanges(before, after map[string][]string, renames map[string]string) []surfaceChange {
+	bricks := map[string]bool{}
+	for b := range before {
+		bricks[b] = true
+	}
+	for b := range after {
+		bricks[b] = true
+	}
+	renamedTo := map[string]bool{}
+	for _, to := range renames {
+		renamedTo[to] = true
+	}
 	var changes []surfaceChange
 	for _, brick := range sortedKeys(bricks) {
-		before, err := surface(oldSrc[brick])
-		if err != nil {
-			return nil, fmt.Errorf("%s at %s: %w", brick, oldTree, err)
+		if renamedTo[brick] {
+			continue // reported from its old name below
 		}
-		after, err := surface(newSrc[brick])
-		if err != nil {
-			return nil, fmt.Errorf("%s at %s: %w", brick, newTree, err)
+		if to, moved := renames[brick]; moved {
+			_, wasThere := before[brick]
+			_, isThere := after[to]
+			if wasThere && isThere {
+				removed, added := diffLines(before[brick], after[to])
+				status := "renamed"
+				if len(removed) > 0 || len(added) > 0 {
+					status = "renamed, changed"
+				}
+				changes = append(changes, surfaceChange{Brick: to, From: brick, Status: status, Removed: removed, Added: added})
+				continue
+			}
 		}
-		removed, added := diffLines(before, after)
+		removed, added := diffLines(before[brick], after[brick])
 		if len(removed) == 0 && len(added) == 0 {
 			continue
 		}
 		status := "changed"
+		_, wasThere := before[brick]
+		_, isThere := after[brick]
 		switch {
-		case oldSrc[brick] == nil:
+		case !wasThere:
 			status = "new"
-		case newSrc[brick] == nil:
+		case !isThere:
 			status = "removed"
 		}
 		changes = append(changes, surfaceChange{Brick: brick, Status: status, Removed: removed, Added: added})
 	}
-	return changes, nil
+	return changes
 }
 
 func diffLines(before, after []string) (removed, added []string) {
@@ -126,7 +203,11 @@ func diffLines(before, after []string) (removed, added []string) {
 
 func printChanges(changes []surfaceChange) {
 	for _, c := range changes {
-		fmt.Printf("  %s (%s brick)\n", c.Brick, c.Status)
+		if c.From != "" {
+			fmt.Printf("  %s (%s, from %s)\n", c.Brick, c.Status, c.From)
+		} else {
+			fmt.Printf("  %s (%s brick)\n", c.Brick, c.Status)
+		}
 		for _, l := range c.Removed {
 			fmt.Printf("    - %s\n", l)
 		}
@@ -145,7 +226,7 @@ type adrScope struct {
 
 func (a adrScope) covers(c surfaceChange) bool {
 	for _, n := range a.Affects[c.Kind()] {
-		if n == "*" || n == c.Name() {
+		if n == "*" || n == c.Name() || (c.FormerName() != "" && n == c.FormerName()) {
 			return true
 		}
 	}
@@ -262,7 +343,11 @@ func printMissing(missing []surfaceChange, notes []string) {
 	}
 	fmt.Println("Not recorded:")
 	for _, c := range missing {
-		fmt.Printf("  - %s (%s): no ADR in this change names `%s` in affects.%s\n", c.Brick, c.Status, c.Name(), c.Kind())
+		names := "`" + c.Name() + "`"
+		if c.FormerName() != "" {
+			names += " or `" + c.FormerName() + "`"
+		}
+		fmt.Printf("  - %s (%s): no ADR in this change names %s in affects.%s\n", c.Brick, c.Status, names, c.Kind())
 	}
 	fmt.Println()
 	fmt.Println("Do one of these:")

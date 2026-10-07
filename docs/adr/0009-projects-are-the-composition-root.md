@@ -13,7 +13,7 @@ interface-impact: none
 
 # ADR-0009: Projects are the composition root
 ## Context and problem statement
-ADR-0002 mapped Polylith's "projects hold no code" onto Go as "a project's `main` package imports only bases", and `poly check` enforced it. An audit with three independent build exercises showed the cost: Go has no project-level configuration that selects which components a deployable ships with, so under that rule the choice of implementation had to live inside the base. Every base then needed two exported entry points, an injectable constructor for tests and a zero-argument one for production, and constructor injection from `main()`, the idiomatic Go shape, was rejected with a message about business logic when the code was pure wiring. The rule also contradicted AGENTS.md's own prose that projects "combine a base with components".
+ADR-0002 mapped Polylith's "projects hold no code" onto Go as "a project's `main` package imports only bases", and `poly check` enforced it. In use, the rule showed its cost: Go has no project-level configuration that selects which components a deployable ships with, so under that rule the choice of implementation had to live inside the base. Every base then needed two exported entry points, an injectable constructor for tests and a zero-argument one for production, and constructor injection from `main()`, the idiomatic Go shape, was rejected with a message about business logic when the code was pure wiring. The rule also contradicted AGENTS.md's own prose that projects "combine a base with components".
 
 ## Decision drivers
 - A project must be able to choose which components it runs with; that is the Polylith promise, and in Go the only place to make that choice is `main()`.

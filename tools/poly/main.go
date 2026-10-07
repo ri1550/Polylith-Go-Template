@@ -25,6 +25,8 @@ Usage (from the workspace root):
   go run ./tools/poly interface --between <old> <new>
                                              print the public interface changes between two refs
   go run ./tools/poly adr new <title>        create the next ADR from the template
+  go run ./tools/poly adopt --module <path> [--decision-makers "..."] [--keep-examples] [--dry-run]
+                                             turn a fresh clone of the template into your workspace
   go run ./tools/poly adr lint               validate the decision log under docs/adr/
   go run ./tools/poly adr index              regenerate docs/adr/index/
 
@@ -51,6 +53,8 @@ func main() {
 		code, err = runDiff(args[1:])
 	case "interface":
 		code, err = runInterface(args[1:])
+	case "adopt":
+		code, err = runAdopt(args[1:])
 	case "adr":
 		if len(args) < 2 {
 			fmt.Fprint(os.Stderr, usage)
