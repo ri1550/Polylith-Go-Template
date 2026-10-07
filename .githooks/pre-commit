@@ -41,6 +41,9 @@ go test ./...
 step "ADR lint"
 go run ./tools/poly adr lint
 
+step "Spec and queue lint"
+go run ./tools/poly spec lint
+
 if git diff --cached --name-only -- 'docs/adr/*.md' | grep -q .; then
   step "ADR index (regenerated and staged for you)"
   go run ./tools/poly adr index

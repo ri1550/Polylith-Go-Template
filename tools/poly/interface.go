@@ -351,7 +351,7 @@ func printMissing(missing []surfaceChange, notes []string) {
 	}
 	fmt.Println()
 	fmt.Println("Do one of these:")
-	fmt.Println("  1. Add an ADR under docs/adr/ whose `affects` names the brick (go run ./tools/poly adr new \"<title>\"; the agent can draft it).")
+	fmt.Println("  1. An ADR under docs/adr/ whose `affects` names the brick (the developer decides whether to record one; `go run ./tools/poly adr new \"<title>\"` starts it).")
 	fmt.Println("  2. Reference an existing ADR that names it in a commit message, e.g. 'ADR-0012: ...'.")
 	fmt.Println("  3. If no consumer can observe this change (including a brick nothing uses yet), add '[interface-impact: none]' to a commit message.")
 	fmt.Println("  4. If the change is additive and an ADR was deliberately declined, add '[interface-impact: new]' to a commit message.")

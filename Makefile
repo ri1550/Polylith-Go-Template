@@ -10,6 +10,7 @@ check:      ## layout and boundaries, type check, decision log, tidy go.mod
 	go run ./tools/poly check
 	$(MAKE) --no-print-directory vet
 	go run ./tools/poly adr lint
+	go run ./tools/poly spec lint
 	go mod tidy -diff
 
 vet:        ## go vet, then the Polylith rules as a vet analyzer (file:line at the import)

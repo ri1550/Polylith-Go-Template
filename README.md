@@ -17,7 +17,7 @@ The example project wires the `greeting` component into the `api` base:
     go run ./projects/hello Ada      # -> Hello, Ada!
     go doc -all ./components/greeting   # the component's public interface
 
-`components/greeting`, `bases/api` and `projects/hello` exist to show the shapes: a component with an Example, a base that receives its dependencies, a project that constructs and wires. Delete them once you have your own.
+`components/greeting`, `bases/api` and `projects/hello` exist to show the shapes: a component with an Example, a base that receives its dependencies, a project that constructs and wires. `docs/spec/greeting.md` is the matching example spec domain whose two rules the greeting tests cite. `make adopt` deletes all four.
 <!-- examples:end -->
 
 ## Common commands
@@ -30,7 +30,8 @@ The example project wires the `greeting` component into the `api` base:
     go run ./tools/poly deps           # what each brick uses; what each project ships
     go run ./tools/poly diff           # bricks and projects changed since the last stable-* tag
     go run ./tools/poly interface      # exported API changes in the staged tree
-    go run ./tools/poly adr new "..."  # start a decision record
+    go run ./tools/poly spec status    # what works (spec rules with a citing test) and what is queued
+    go run ./tools/poly adr new "..."  # start a decision record (when you ask for one)
     make adopt MODULE=...              # once, on a fresh clone: make the template yours
 
 ## Create new bricks
@@ -57,6 +58,8 @@ Rules in one line each (full version in `AGENTS.md`): components import only com
     bases/         thin entry points (one per kind of outside world)
     projects/      deployables: one main.go each, plus deploy files
     development/   scratch programs, outside ./... (go.mod ignore)
+    docs/spec/     the behavior contract: one file per product domain, numbered rules, OPEN: questions
+    docs/queue.yaml the build queue: which rules to implement next, in order (agent-maintained)
     docs/adr/      the decision log and its generated per-brick index
     tools/poly/    the in-repo Polylith tool and checks
 

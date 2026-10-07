@@ -14,6 +14,7 @@ Per-brick discoverability comes from the `affects` field and the generated index
 - `affects` is historical: it may name a brick that does not exist yet or no longer exists. The lint warns, never blocks, and you never edit an old ADR to follow a rename.
 - `interface-impact`: `none` | `new` | `breaking`, meaning whether the decision changes a brick's exported API. A `breaking` decision is the one that must be recorded here, because it ripples to every project that consumes the brick.
 - Status lifecycle: `proposed` → `accepted` → `deprecated` | `superseded by ADR-NNNN`. An ADR drafted by an agent stays `proposed` until a person accepts it; `date` and `decision-makers` are filled in at that point.
+- ADRs are started by the developer. An agent drafts one only when asked, and never offers one unprompted. A choice that is still open is an `OPEN:` line in `docs/spec/`, not a proposed ADR (see `docs/spec/README.md`, "Decisions", and ADR-0005).
 - `0000-adr-template.md` is the template; `poly adr new` copies it. Do not edit it in place.
 
 ## Enforcement

@@ -40,6 +40,9 @@ jobs:
       - name: ADR lint
         run: go run ./tools/poly adr lint
 
+      - name: Spec and queue lint
+        run: go run ./tools/poly spec lint
+
       - name: Interface changes are recorded
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
