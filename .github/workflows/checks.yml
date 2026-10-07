@@ -1,0 +1,45 @@
+name: checks
+
+# Runs on every pull request and on pushes to main. The pull_request run is the
+# one that gates merging once branch protection is turned on (see CONTRIBUTING.md).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history so we can diff against the base branch
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Tests
+        run: go test ./...
+
+      - name: Lint (golangci-lint, includes go vet and gofmt)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+
+      - name: Polylith check (brick boundaries and layout)
+        run: go run ./tools/poly check
+
+      - name: ADR front matter lint
+        run: go run ./tools/poly adr lint
+
+      - name: Interface change must be recorded
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          git fetch origin "$BASE_REF" || true
+          go run ./tools/poly interface --mode ci

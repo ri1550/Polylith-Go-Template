@@ -1,0 +1,17 @@
+# ADR index
+Generated view of the decision log. Do not edit by hand; run `go run ./tools/poly adr index`.
+
+## All ADRs
+- [ADR-0001: Record decisions using MADR](../0001-record-decisions-using-madr.md) (accepted)
+- [ADR-0002: Adopt the Polylith architecture](../0002-adopt-polylith-architecture.md) (accepted)
+- [ADR-0003: Adopt Best Simple System for Now as the guiding principle](../0003-adopt-bssn-as-guiding-principle.md) (accepted)
+- [ADR-0004: Use a single Go module for the whole workspace](../0004-use-a-single-go-module.md) (accepted)
+- [ADR-0005: Capture context in the codebase](../0005-capture-context-in-the-codebase.md) (accepted)
+- [ADR-0006: Enforce the context system with automated checks](../0006-enforce-the-process-with-automated-checks.md) (accepted)
+- [ADR-0007: Enforce code quality with automated checks](../0007-enforce-code-quality-with-automated-checks.md) (accepted)
+- [ADR-0008: Build the Polylith tooling in the repository](../0008-build-polylith-tooling-in-repo.md) (accepted)
+
+## By brick
+- base `*`: [bases-_all_.md](bases-_all_.md) (5)
+- component `*`: [components-_all_.md](components-_all_.md) (5)
+- project `*`: [projects-_all_.md](projects-_all_.md) (6)

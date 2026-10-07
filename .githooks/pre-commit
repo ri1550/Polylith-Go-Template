@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Pre-commit hook. Turn it on once per clone with `make hooks`
+# (which runs `git config core.hooksPath .githooks`).
+#
+# Local checks are the fast warning; CI (.github/workflows/checks.yml) is the
+# real gate and runs the same checks plus the tests. See CONTRIBUTING.md.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+step() { printf '\n== %s\n' "$1"; }
+fail() { printf '\n%s\n' "$1"; exit 1; }
+
+step "gofmt"
+staged_go=$(git diff --cached --name-only --diff-filter=ACM -- '*.go')
+if [ -n "$staged_go" ]; then
+  unformatted=$(printf '%s\n' "$staged_go" | tr '\n' '\0' | xargs -0 gofmt -l)
+  if [ -n "$unformatted" ]; then
+    printf '%s\n' "$unformatted"
+    fail "These files are not gofmt-formatted. Run: gofmt -w <file>, then git add and commit again."
+  fi
+fi
+
+step "go build ./..."
+go build ./...
+
+step "go vet ./..."
+go vet ./...
+
+step "Polylith check (brick boundaries and layout)"
+go run ./tools/poly check
+
+step "ADR front matter lint"
+go run ./tools/poly adr lint
+
+# Keeps the local index current. Not enforced in CI: parallel branches that
+# both add ADRs would conflict on the generated files.
+if git diff --cached --name-only -- 'docs/adr/*.md' | grep -q .; then
+  step "Refresh the ADR index"
+  go run ./tools/poly adr index
+  # Only unstaged edits or untracked files count; staged index files are fine.
+  if [ -n "$(git diff --name-only -- docs/adr/index)$(git ls-files --others --exclude-standard -- docs/adr/index)" ]; then
+    fail "The ADR index under docs/adr/index/ was refreshed. Nothing is wrong: git add docs/adr/index and commit again."
+  fi
+fi
+
+step "Interface change heads-up (does not block locally)"
+go run ./tools/poly interface --mode pre-commit
+
+step "golangci-lint"
+if command -v golangci-lint >/dev/null 2>&1; then
+  golangci-lint run
+else
+  echo "golangci-lint is not installed; skipping locally. CI runs it and will block on findings."
+  echo "Install: https://golangci-lint.run/docs/welcome/install/"
+fi
+
+# Always last, so the reminder lands in context just before the commit.
+printf '\nBefore committing: walk the "Pre-commit checklist" section in AGENTS.md.\n'
