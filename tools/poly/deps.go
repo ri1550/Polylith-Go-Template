@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 	"sort"
 	"strings"
 )
@@ -73,7 +74,24 @@ func orNone(names []string) string {
 	return strings.Join(names, ", ")
 }
 
-// runDeps prints what each brick uses, what uses it, and what each project pulls in.
+// thirdPartyModules lists the modules outside this workspace that a package
+// pulls in transitively (project binaries link exactly these).
+func thirdPartyModules(ws *Workspace, pkgPath string) ([]string, error) {
+	out, err := exec.Command("go", "list", "-deps", "-f", "{{with .Module}}{{.Path}}{{end}}", pkgPath).Output()
+	if err != nil {
+		return nil, fmt.Errorf("go list -deps %s: %w", pkgPath, err)
+	}
+	mods := map[string]bool{}
+	for _, l := range strings.Split(string(out), "\n") {
+		if l = strings.TrimSpace(l); l != "" && l != ws.Module {
+			mods[l] = true
+		}
+	}
+	return sortedKeys(mods), nil
+}
+
+// runDeps prints what each brick uses, what uses it (bricks and projects),
+// and what each project pulls in: bricks, and modules from outside the workspace.
 func runDeps() (int, error) {
 	ws, err := loadWorkspace()
 	if err != nil {
@@ -84,39 +102,54 @@ func runDeps() (int, error) {
 	usedBy := map[string]map[string]bool{}
 	for k, deps := range direct {
 		kind, name, _ := strings.Cut(k, "/")
+		label := name
 		if kind == string(KindProject) {
-			continue
+			label = name + " (project)"
 		}
 		for dep := range deps {
 			if usedBy[dep] == nil {
 				usedBy[dep] = map[string]bool{}
 			}
-			usedBy[dep][name] = true
+			usedBy[dep][label] = true
 		}
 	}
 
+	keys := sortedKeys(toBoolMap(direct))
 	fmt.Println("Bricks (direct dependencies):")
+	nBricks := 0
 	for _, kind := range []Kind{KindComponent, KindBase} {
-		for _, k := range sortedKeys(toBoolMap(direct)) {
+		for _, k := range keys {
 			if !strings.HasPrefix(k, string(kind)+"/") {
 				continue
 			}
+			nBricks++
 			name := strings.TrimPrefix(k, string(kind)+"/")
 			fmt.Printf("  %-9s %-20s uses: %-30s used by: %s\n",
 				kind, name, orNone(sortedKeys(direct[k])), orNone(sortedKeys(usedBy[name])))
 		}
 	}
+	if nBricks == 0 {
+		fmt.Println("  (none yet)")
+	}
 	fmt.Println()
-	fmt.Println("Projects (all bricks they pull in):")
-	any := false
-	for _, k := range sortedKeys(toBoolMap(direct)) {
+	fmt.Println("Projects:")
+	nProjects := 0
+	for _, k := range keys {
 		if !strings.HasPrefix(k, string(KindProject)+"/") {
 			continue
 		}
-		any = true
-		fmt.Printf("  %-30s %s\n", strings.TrimPrefix(k, "project/"), orNone(sortedKeys(transitive[k])))
+		nProjects++
+		name := strings.TrimPrefix(k, "project/")
+		mods, err := thirdPartyModules(ws, "./projects/"+name)
+		if err != nil {
+			return 1, err
+		}
+		fmt.Printf("  %s\n", name)
+		fmt.Printf("    wires directly:  %s\n", orNone(sortedKeys(direct[k])))
+		fmt.Printf("    ships bricks:    %s\n", orNone(sortedKeys(transitive[k])))
+		fmt.Printf("    ships modules:   %s\n", orNone(mods))
 	}
-	if !any {
+	if nProjects == 0 {
 		fmt.Println("  (none yet)")
 	}
 	return 0, nil

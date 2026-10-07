@@ -31,6 +31,7 @@ type Pkg struct {
 	Imports    []string // regular and test imports, deduplicated
 	Kind       Kind
 	Brick      string // brick or project name (the directory under components/, bases/ or projects/)
+	GoFiles    int    // number of non-test Go files in the package
 	Err        string // why the package failed to load, if it did
 }
 
@@ -84,6 +85,7 @@ type listEntry struct {
 	Imports      []string
 	TestImports  []string
 	XTestImports []string
+	GoFiles      []string
 	Module       *struct{ Path, Dir string }
 	Error        *struct{ Err string }
 }
@@ -91,7 +93,7 @@ type listEntry struct {
 // loadWorkspace runs `go list` over the whole module and classifies every package.
 func loadWorkspace() (*Workspace, error) {
 	cmd := exec.Command("go", "list", "-e",
-		"-json=ImportPath,Dir,Name,Imports,TestImports,XTestImports,Module,Error", "./...")
+		"-json=ImportPath,Dir,Name,Imports,TestImports,XTestImports,GoFiles,Module,Error", "./...")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -131,6 +133,7 @@ func loadWorkspace() (*Workspace, error) {
 			Imports:    dedupe(e.Imports, e.TestImports, e.XTestImports),
 			Kind:       kind,
 			Brick:      brick,
+			GoFiles:    len(e.GoFiles),
 			Err:        loadErr,
 		})
 	}
@@ -156,6 +159,19 @@ func dedupe(lists ...[]string) []string {
 // git runs a git command and returns its stdout.
 func git(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return string(out), nil
+}
+
+// gitWithStdin runs a git command with the given stdin and returns its stdout.
+func gitWithStdin(stdin string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Stdin = strings.NewReader(stdin)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

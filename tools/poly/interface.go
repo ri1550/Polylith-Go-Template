@@ -1,16 +1,20 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
-	"os/exec"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
 )
 
-var adrFileRE = regexp.MustCompile(`^docs/adr/\d{4}-.+\.md$`)
+var (
+	adrFileRE   = regexp.MustCompile(`^docs/adr/(\d{4})-.+\.md$`)
+	adrRefRE    = regexp.MustCompile(`(?i)\badr-(\d{4})\b`)
+	markerRE    = regexp.MustCompile(`(?i)\[interface-impact:\s*([a-z]+)\s*\]`)
+	validMarker = map[string]bool{"none": true, "new": true}
+)
 
 // brickSources returns the non-test Go sources of every brick root package in
 // a git tree, keyed by brick path (components/<name>, bases/<name>).
@@ -20,12 +24,12 @@ func brickSources(tree string) (map[string]map[string][]byte, error) {
 		return nil, err
 	}
 	out := map[string]map[string][]byte{}
-	for _, path := range paths {
-		parts := strings.Split(path, "/")
-		if len(parts) != 3 || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+	for _, p := range paths {
+		parts := strings.Split(p, "/")
+		if len(parts) != 3 || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
 			continue
 		}
-		src, err := git("show", tree+":"+path)
+		src, err := git("show", tree+":"+p)
 		if err != nil {
 			return nil, err
 		}
@@ -40,10 +44,17 @@ func brickSources(tree string) (map[string]map[string][]byte, error) {
 
 // surfaceChange is the difference in one brick's public interface between two trees.
 type surfaceChange struct {
-	Brick   string
+	Brick   string // components/<name> or bases/<name>
+	Status  string // "new", "removed" or "changed"
 	Removed []string
 	Added   []string
 }
+
+// Name returns the bare brick name.
+func (c surfaceChange) Name() string { return path.Base(c.Brick) }
+
+// Kind returns the affects key for the brick: "components" or "bases".
+func (c surfaceChange) Kind() string { return path.Dir(c.Brick) }
 
 // surfaceChanges compares the public interface of every brick between two git trees.
 func surfaceChanges(oldTree, newTree string) ([]surfaceChange, error) {
@@ -74,9 +85,17 @@ func surfaceChanges(oldTree, newTree string) ([]surfaceChange, error) {
 			return nil, fmt.Errorf("%s at %s: %w", brick, newTree, err)
 		}
 		removed, added := diffLines(before, after)
-		if len(removed) > 0 || len(added) > 0 {
-			changes = append(changes, surfaceChange{Brick: brick, Removed: removed, Added: added})
+		if len(removed) == 0 && len(added) == 0 {
+			continue
 		}
+		status := "changed"
+		switch {
+		case oldSrc[brick] == nil:
+			status = "new"
+		case newSrc[brick] == nil:
+			status = "removed"
+		}
+		changes = append(changes, surfaceChange{Brick: brick, Status: status, Removed: removed, Added: added})
 	}
 	return changes, nil
 }
@@ -107,7 +126,7 @@ func diffLines(before, after []string) (removed, added []string) {
 
 func printChanges(changes []surfaceChange) {
 	for _, c := range changes {
-		fmt.Printf("  %s\n", c.Brick)
+		fmt.Printf("  %s (%s brick)\n", c.Brick, c.Status)
 		for _, l := range c.Removed {
 			fmt.Printf("    - %s\n", l)
 		}
@@ -117,46 +136,194 @@ func printChanges(changes []surfaceChange) {
 	}
 }
 
-func hasADR(paths []string) bool {
-	for _, p := range paths {
-		if adrFileRE.MatchString(p) {
+// adrScope is what one ADR says it affects: kind ("components", "bases",
+// "projects") to the names listed, where "*" means every brick of that kind.
+type adrScope struct {
+	Number  string
+	Affects map[string][]string
+}
+
+func (a adrScope) covers(c surfaceChange) bool {
+	for _, n := range a.Affects[c.Kind()] {
+		if n == "*" || n == c.Name() {
 			return true
 		}
 	}
 	return false
 }
 
-// emptyTree is the hash of the empty tree, used when the repository has no commits yet.
-func emptyTree() (string, error) {
-	cmd := exec.Command("git", "mktree")
-	cmd.Stdin = strings.NewReader("")
-	out, err := cmd.Output()
+// adrScopeFromGit parses the front matter of an ADR as it exists in a git tree.
+func adrScopeFromGit(tree, file string) (adrScope, error) {
+	text, err := git("show", tree+":"+file)
 	if err != nil {
-		return "", fmt.Errorf("git mktree: %w", err)
+		return adrScope{}, err
 	}
-	return strings.TrimSpace(string(out)), nil
+	data, err := frontMatter(text)
+	if err != nil {
+		return adrScope{}, fmt.Errorf("%s: %v", file, err)
+	}
+	scope := adrScope{Affects: map[string][]string{}}
+	if m := adrFileRE.FindStringSubmatch(file); m != nil {
+		scope.Number = m[1]
+	}
+	if affects, ok := data["affects"].(map[string]any); ok {
+		for _, kind := range affectsKinds {
+			values, _ := affectsList(affects, kind)
+			scope.Affects[kind] = values
+		}
+	}
+	return scope, nil
+}
+
+// recording is the evidence a pull request offers for its interface changes.
+type recording struct {
+	ADRs    []adrScope // ADR files in the diff, plus ADRs referenced by number in commit messages
+	Markers []string   // [interface-impact: x] values found in commit messages
+}
+
+// unrecorded returns the changed bricks that no ADR in the recording covers
+// and no valid marker excuses, plus notes explaining what was ignored.
+func unrecorded(changes []surfaceChange, rec recording) (missing []surfaceChange, notes []string) {
+	excused := false
+	for _, m := range rec.Markers {
+		if validMarker[m] {
+			excused = true
+		} else {
+			notes = append(notes, fmt.Sprintf("[interface-impact: %s] is not a marker; a %s change needs an ADR file (markers are none or new)", m, m))
+		}
+	}
+	if excused {
+		return nil, notes
+	}
+	for _, c := range changes {
+		covered := false
+		for _, a := range rec.ADRs {
+			if a.covers(c) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			missing = append(missing, c)
+		}
+	}
+	return missing, notes
+}
+
+// gatherRecording collects the ADR files in a list of changed paths (read from
+// tree), the ADRs that commit messages reference by number, and the markers.
+func gatherRecording(tree string, changedPaths []string, messages string) (recording, []string) {
+	var rec recording
+	var notes []string
+	seen := map[string]bool{}
+	for _, p := range changedPaths {
+		if !adrFileRE.MatchString(p) {
+			continue
+		}
+		scope, err := adrScopeFromGit(tree, p)
+		if err != nil {
+			notes = append(notes, err.Error()) // deleted or unparsable: cannot count it
+			continue
+		}
+		rec.ADRs = append(rec.ADRs, scope)
+		seen[scope.Number] = true
+	}
+	for _, m := range adrRefRE.FindAllStringSubmatch(messages, -1) {
+		num := m[1]
+		if seen[num] {
+			continue
+		}
+		seen[num] = true
+		files, _ := gitLines("ls-tree", "-r", "--name-only", tree, "--", "docs/adr")
+		found := false
+		for _, f := range files {
+			if strings.HasPrefix(path.Base(f), num+"-") {
+				scope, err := adrScopeFromGit(tree, f)
+				if err == nil {
+					rec.ADRs = append(rec.ADRs, scope)
+					found = true
+				}
+				break
+			}
+		}
+		if !found {
+			notes = append(notes, fmt.Sprintf("a commit message references ADR-%s, but no such ADR exists", num))
+		}
+	}
+	for _, m := range markerRE.FindAllStringSubmatch(messages, -1) {
+		rec.Markers = append(rec.Markers, strings.ToLower(m[1]))
+	}
+	return rec, notes
+}
+
+func printMissing(missing []surfaceChange, notes []string) {
+	for _, n := range notes {
+		fmt.Printf("  note: %s\n", n)
+	}
+	fmt.Println("Not recorded:")
+	for _, c := range missing {
+		fmt.Printf("  - %s (%s): no ADR in this change names `%s` in affects.%s\n", c.Brick, c.Status, c.Name(), c.Kind())
+	}
+	fmt.Println()
+	fmt.Println("Do one of these:")
+	fmt.Println("  1. Add an ADR under docs/adr/ whose `affects` names the brick (go run ./tools/poly adr new \"<title>\"; the agent can draft it).")
+	fmt.Println("  2. Reference an existing ADR that names it in a commit message, e.g. 'ADR-0012: ...'.")
+	fmt.Println("  3. If no consumer can observe this change (including a brick nothing uses yet), add '[interface-impact: none]' to a commit message.")
+	fmt.Println("  4. If the change is additive and an ADR was deliberately declined, add '[interface-impact: new]' to a commit message.")
+	fmt.Println("A breaking change always needs an ADR. See CONTRIBUTING.md.")
+}
+
+// emptyTree returns the hash of the empty tree for this repository.
+func emptyTree() (string, error) {
+	out, err := gitWithStdin("", "mktree")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 // runInterface reports public interface changes.
 //
-// --mode pre-commit compares the staged tree with HEAD and only warns.
-// --mode ci compares HEAD with the merge base of origin/<BASE_REF> and blocks
-// unless the change is recorded: an ADR file in the diff, an "ADR-NNNN"
-// reference in a commit message, or "[interface-impact: none]" in a commit message.
+//	--mode pre-commit  staged tree vs HEAD; prints the diff; warns about unrecorded bricks; never blocks
+//	--mode ci          HEAD vs the merge base with origin/<BASE_REF>; prints the diff; blocks on unrecorded bricks
+//	--between A B      prints the diff between any two refs
 func runInterface(args []string) (int, error) {
-	fs := flag.NewFlagSet("interface", flag.ContinueOnError)
-	mode := fs.String("mode", "pre-commit", "pre-commit (warn only) or ci (block)")
-	if err := fs.Parse(args); err != nil {
-		return 2, err
+	mode := "pre-commit"
+	var between []string
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--between" && i+2 < len(args):
+			between = args[i+1 : i+3]
+			i += 2
+		case args[i] == "--mode" && i+1 < len(args):
+			mode = args[i+1]
+			i++
+		case strings.HasPrefix(args[i], "--mode="):
+			mode = strings.TrimPrefix(args[i], "--mode=")
+		default:
+			return 2, fmt.Errorf("usage: poly interface [--mode pre-commit|ci] | --between <old> <new>")
+		}
 	}
-
-	switch *mode {
+	if between != nil {
+		changes, err := surfaceChanges(between[0], between[1])
+		if err != nil {
+			return 1, err
+		}
+		if len(changes) == 0 {
+			fmt.Printf("No public interface changes between %s and %s.\n", between[0], between[1])
+			return 0, nil
+		}
+		fmt.Printf("Public interface changes between %s and %s:\n", between[0], between[1])
+		printChanges(changes)
+		return 0, nil
+	}
+	switch mode {
 	case "pre-commit":
 		return interfacePreCommit()
 	case "ci":
 		return interfaceCI()
 	default:
-		return 2, fmt.Errorf("unknown mode %q (want pre-commit or ci)", *mode)
+		return 2, fmt.Errorf("unknown mode %q (want pre-commit or ci)", mode)
 	}
 }
 
@@ -173,27 +340,31 @@ func interfacePreCommit() (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	changes, err := surfaceChanges(oldTree, strings.TrimSpace(newTree))
+	newTree = strings.TrimSpace(newTree)
+	changes, err := surfaceChanges(oldTree, newTree)
 	if err != nil {
 		return 1, err
 	}
 	if len(changes) == 0 {
+		fmt.Println("No public interface changes.")
 		return 0, nil
 	}
+	fmt.Println("This commit changes a public interface (a brick's exported API):")
+	printChanges(changes)
 	staged, err := gitLines("diff", "--cached", "--name-only", "--diff-filter=ACM")
 	if err != nil {
 		return 1, err
 	}
-	if hasADR(staged) {
-		fmt.Println("Public interface changed and an ADR is staged with it. OK.")
+	rec, notes := gatherRecording(newTree, staged, "") // the commit message does not exist yet
+	missing, moreNotes := unrecorded(changes, rec)
+	notes = append(notes, moreNotes...)
+	fmt.Println()
+	if len(missing) == 0 {
+		fmt.Println("Every changed brick is named by an ADR staged in this commit. OK.")
 		return 0, nil
 	}
-	fmt.Println("Heads-up: this commit changes a public interface (a brick's exported API):")
-	printChanges(changes)
-	fmt.Println()
-	fmt.Println("This changes what other code depends on. If it is a real interface change, add an ADR")
-	fmt.Println("under docs/adr/ in this commit (the agent can draft it). CI will ask for this later.")
-	fmt.Println("Not blocking you now.")
+	printMissing(missing, notes)
+	fmt.Println("Not blocking you now; CI blocks a pull request that leaves this unrecorded.")
 	return 0, nil // never block locally
 }
 
@@ -229,32 +400,29 @@ func interfaceCI() (int, error) {
 		fmt.Println("No public interface changes. OK.")
 		return 0, nil
 	}
+	fmt.Printf("Public interface changes since %s:\n", base)
+	printChanges(changes)
 	files, err := gitLines("diff", "--name-only", mergeBase, "HEAD")
 	if err != nil {
 		return 1, err
-	}
-	if hasADR(files) {
-		fmt.Println("Public interface changed and an ADR is included. OK.")
-		return 0, nil
 	}
 	messages, err := git("log", "--format=%B", mergeBase+"..HEAD")
 	if err != nil {
 		return 1, err
 	}
-	lower := strings.ToLower(messages)
-	if strings.Contains(lower, "adr-") || strings.Contains(lower, "[interface-impact:") {
-		fmt.Println("Public interface changed and a commit message records it. OK.")
+	rec, notes := gatherRecording("HEAD", files, messages)
+	missing, moreNotes := unrecorded(changes, rec)
+	notes = append(notes, moreNotes...)
+	fmt.Println()
+	if len(missing) == 0 {
+		for _, n := range notes {
+			fmt.Printf("  note: %s\n", n)
+		}
+		fmt.Println("Every changed brick is recorded. OK.")
 		return 0, nil
 	}
-
-	fmt.Println("This pull request changes a public interface but records no decision:")
+	fmt.Println("This pull request changes public interfaces that no decision records:")
 	fmt.Println()
-	printChanges(changes)
-	fmt.Println()
-	fmt.Println("Do one of these, then push again:")
-	fmt.Println("  1. Add or update an ADR under docs/adr/ describing the change (best option; the agent can draft it).")
-	fmt.Println("  2. Reference an ADR in a commit message, e.g. 'ADR-NNNN: ...'.")
-	fmt.Println("  3. If this is NOT a contract change, add '[interface-impact: none]' to a commit message.")
-	fmt.Println("See CONTRIBUTING.md for details.")
+	printMissing(missing, notes)
 	return 1, nil
 }

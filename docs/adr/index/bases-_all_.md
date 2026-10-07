@@ -1,4 +1,4 @@
-# ADRs affecting base: *
+# ADRs affecting base: * (every base)
 - [ADR-0002: Adopt the Polylith architecture](../0002-adopt-polylith-architecture.md) (accepted)
 - [ADR-0005: Capture context in the codebase](../0005-capture-context-in-the-codebase.md) (accepted)
 - [ADR-0006: Enforce the context system with automated checks](../0006-enforce-the-process-with-automated-checks.md) (accepted)

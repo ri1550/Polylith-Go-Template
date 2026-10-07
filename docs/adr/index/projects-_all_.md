@@ -1,4 +1,4 @@
-# ADRs affecting project: *
+# ADRs affecting project: * (every project)
 - [ADR-0002: Adopt the Polylith architecture](../0002-adopt-polylith-architecture.md) (accepted)
 - [ADR-0004: Use a single Go module for the whole workspace](../0004-use-a-single-go-module.md) (accepted)
 - [ADR-0005: Capture context in the codebase](../0005-capture-context-in-the-codebase.md) (accepted)

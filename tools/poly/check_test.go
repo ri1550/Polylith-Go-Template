@@ -12,7 +12,12 @@ func pkg(rel, name string, imports ...string) *Pkg {
 	for i, imp := range imports {
 		imports[i] = mod + "/" + imp
 	}
-	return &Pkg{ImportPath: mod + "/" + rel, Rel: rel, Name: name, Imports: imports, Kind: kind, Brick: brick}
+	return &Pkg{ImportPath: mod + "/" + rel, Rel: rel, Name: name, Imports: imports, Kind: kind, Brick: brick, GoFiles: 1}
+}
+
+func withFiles(p *Pkg, n int) *Pkg {
+	p.GoFiles = n
+	return p
 }
 
 func broken(p *Pkg, err string) *Pkg {
@@ -27,7 +32,8 @@ func TestCheckAcceptsAValidWorkspace(t *testing.T) {
 		pkg("components/users", "users", "components/greeting"),
 		pkg("bases/api", "api", "components/users", "bases/api/internal/routes"),
 		pkg("bases/api/internal/routes", "routes", "components/greeting"),
-		pkg("projects/hello", "main", "bases/api"),
+		// A project is the composition root: it wires components into a base (ADR-0009).
+		pkg("projects/hello", "main", "bases/api", "components/users"),
 		pkg("development/scratch", "main", "components/users", "bases/api"),
 		pkg("tools/poly", "main", "components/users"),
 	}}
@@ -44,13 +50,15 @@ func TestCheckRejectsRuleViolations(t *testing.T) {
 	}{
 		{"component imports base", []*Pkg{pkg("bases/api", "api"), pkg("components/a", "a", "bases/api")}, "components must not import bases"},
 		{"base imports base", []*Pkg{pkg("bases/a", "a"), pkg("bases/b", "b", "bases/a")}, "must not import another base"},
-		{"project imports component", []*Pkg{pkg("components/a", "a"), pkg("projects/p", "main", "components/a")}, "projects import only bases"},
-		{"anything imports a project", []*Pkg{pkg("projects/p", "main"), pkg("bases/a", "a", "projects/p")}, "projects are leaves"},
+		{"anything imports a project", []*Pkg{pkg("projects/p", "main", "bases/a"), pkg("bases/a", "a", "projects/p")}, "projects are leaves"},
 		{"anything imports development", []*Pkg{pkg("development/s", "s"), pkg("components/a", "a", "development/s")}, "development/"},
 		{"anything imports tools", []*Pkg{pkg("tools/poly", "main"), pkg("components/a", "a", "tools/poly")}, "tools/"},
 		{"bypassing the interface", []*Pkg{pkg("components/a", "a"), pkg("components/a/util", "util"), pkg("components/b", "b", "components/a/util")}, "root package"},
+		{"importing internal", []*Pkg{pkg("components/a", "a"), pkg("components/a/internal/x", "x"), pkg("components/b", "b", "components/a/internal/x")}, "private to its brick"},
 		{"brick is package main", []*Pkg{pkg("components/a", "main")}, "must not be package main"},
-		{"project is not main", []*Pkg{pkg("projects/p", "p")}, "must be package main"},
+		{"project is not main", []*Pkg{pkg("projects/p", "p", "bases/a"), pkg("bases/a", "a")}, "must be package main"},
+		{"project imports no base", []*Pkg{pkg("projects/p", "main", "components/a"), pkg("components/a", "a")}, "at least one base"},
+		{"project has two files", []*Pkg{withFiles(pkg("projects/p", "main", "bases/a"), 2), pkg("bases/a", "a")}, "single Go file"},
 		{"code outside the layout", []*Pkg{pkg("internal/x", "x")}, "outside the Polylith layout"},
 		{"file directly under components", []*Pkg{pkg("components", "components")}, "own subdirectory"},
 		{"duplicate brick name", []*Pkg{pkg("components/a", "a"), pkg("bases/a", "a")}, "must be unique"},
@@ -74,11 +82,11 @@ func TestBrickDepsAreTransitiveForProjects(t *testing.T) {
 		pkg("components/greeting", "greeting"),
 		pkg("components/users", "users", "components/greeting"),
 		pkg("bases/api", "api", "components/users"),
-		pkg("projects/hello", "main", "bases/api"),
+		pkg("projects/hello", "main", "bases/api", "components/greeting"),
 	}}
 	direct, transitive := brickDeps(ws)
-	if got := sortedKeys(direct["project/hello"]); strings.Join(got, ",") != "api" {
-		t.Errorf("direct deps of hello = %v, want [api]", got)
+	if got := sortedKeys(direct["project/hello"]); strings.Join(got, ",") != "api,greeting" {
+		t.Errorf("direct deps of hello = %v, want [api greeting]", got)
 	}
 	if got := sortedKeys(transitive["project/hello"]); strings.Join(got, ",") != "api,greeting,users" {
 		t.Errorf("transitive deps of hello = %v, want [api greeting users]", got)
@@ -99,5 +107,33 @@ func TestBrickOfPath(t *testing.T) {
 		if got := string(kind) + "/" + brick; got != want {
 			t.Errorf("brickOfPath(%q) = %q, want %q", path, got, want)
 		}
+	}
+}
+
+func TestChangedUnitsLabelsNewRemovedAndChanged(t *testing.T) {
+	status := changedUnits([]string{
+		"A\tcomponents/fresh/fresh.go",
+		"D\tbases/old/old.go",
+		"D\tbases/old/old_test.go",
+		"M\tcomponents/greeting/greeting.go",
+		"A\tcomponents/greeting/extra.go",
+		"R086\tbases/api/api.go\tbases/greetapi/greetapi.go",
+		"M\tREADME.md",
+	}, []string{"projects/spike/main.go"})
+	want := unitStatus{
+		"component/fresh":    "new",
+		"base/old":           "removed",
+		"component/greeting": "changed",
+		"base/api":           "removed",
+		"base/greetapi":      "new",
+		"project/spike":      "new",
+	}
+	for k, v := range want {
+		if status[k] != v {
+			t.Errorf("%s = %q, want %q", k, status[k], v)
+		}
+	}
+	if len(status) != len(want) {
+		t.Errorf("got %v", status)
 	}
 }
