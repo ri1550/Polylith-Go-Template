@@ -1,6 +1,6 @@
 # Everyday entry points. Each target is a few plain commands; read it if you
 # want to run them by hand. `make all` is what CI runs, minus govulncheck.
-.PHONY: hooks check test lint build adr-index all
+.PHONY: hooks check vet test lint build adr-index adopt all
 
 hooks:      ## turn the git hooks on for this clone (run once after cloning)
 	git config core.hooksPath .githooks
@@ -8,9 +8,14 @@ hooks:      ## turn the git hooks on for this clone (run once after cloning)
 
 check:      ## layout and boundaries, type check, decision log, tidy go.mod
 	go run ./tools/poly check
-	go vet ./...
+	$(MAKE) --no-print-directory vet
 	go run ./tools/poly adr lint
 	go mod tidy -diff
+
+vet:        ## go vet, then the Polylith rules as a vet analyzer (file:line at the import)
+	go vet ./...
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+		go build -o "$$tmp/polyvet" ./tools/polyvet && go vet -vettool="$$tmp/polyvet" ./...
 
 test:       ## run every test with the race detector
 	go test -race -shuffle=on ./...
@@ -29,5 +34,8 @@ build:      ## build every project into bin/
 
 adr-index:  ## regenerate docs/adr/index/
 	go run ./tools/poly adr index
+
+adopt:      ## one-time: make this clone yours (make adopt MODULE=github.com/org/repo [MAKERS="platform team"])
+	go run ./tools/poly adopt --module "$(MODULE)" $(if $(MAKERS),--decision-makers "$(MAKERS)",)
 
 all: check test lint

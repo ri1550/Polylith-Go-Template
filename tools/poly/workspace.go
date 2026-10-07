@@ -9,37 +9,30 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/myorg/workspace/tools/polylith"
 )
 
-// Kind says where a package sits in the Polylith layout.
-type Kind string
+// The rule vocabulary lives in tools/polylith, shared with the polyvet analyzer.
+type (
+	Kind = polylith.Kind
+	Pkg  = polylith.Pkg
+)
 
+// Kinds, re-exported for brevity.
 const (
-	KindComponent   Kind = "component"
-	KindBase        Kind = "base"
-	KindProject     Kind = "project"
-	KindDevelopment Kind = "development"
-	KindTools       Kind = "tools"
-	KindOther       Kind = "other" // Go code outside the layout; `poly check` rejects it
+	KindComponent   = polylith.KindComponent
+	KindBase        = polylith.KindBase
+	KindProject     = polylith.KindProject
+	KindDevelopment = polylith.KindDevelopment
+	KindTools       = polylith.KindTools
+	KindOther       = polylith.KindOther
 )
 
-// Pkg is one Go package in the workspace.
-type Pkg struct {
-	ImportPath string
-	Rel        string   // directory relative to the module root, forward slashes
-	Name       string   // package clause name
-	Imports    []string // regular and test imports, deduplicated
-	Kind       Kind
-	Brick      string // brick or project name (the directory under components/, bases/ or projects/)
-	GoFiles    int    // number of non-test Go files in the package
-	Err        string // why the package failed to load, if it did
-}
-
-// IsRoot reports whether the package is a brick's or project's root package
-// (components/<name>, bases/<name>, projects/<name>) rather than a subpackage.
-func (p *Pkg) IsRoot() bool {
-	return p.Brick != "" && strings.Count(p.Rel, "/") == 1
-}
+var (
+	classify   = polylith.Classify
+	importRule = polylith.ImportRule
+)
 
 // Workspace is the set of packages in the module, classified.
 type Workspace struct {
@@ -54,28 +47,6 @@ func (w *Workspace) ByImport() map[string]*Pkg {
 		m[p.ImportPath] = p
 	}
 	return m
-}
-
-// classify maps a module-relative directory to its kind and brick name.
-func classify(rel string) (Kind, string) {
-	parts := strings.Split(rel, "/")
-	brick := ""
-	if len(parts) > 1 {
-		brick = parts[1]
-	}
-	switch parts[0] {
-	case "components":
-		return KindComponent, brick
-	case "bases":
-		return KindBase, brick
-	case "projects":
-		return KindProject, brick
-	case "development":
-		return KindDevelopment, brick
-	case "tools":
-		return KindTools, brick
-	}
-	return KindOther, ""
 }
 
 type listEntry struct {
