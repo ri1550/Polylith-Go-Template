@@ -39,7 +39,7 @@ Polylith over the alternatives because it gives code sharing and clear boundarie
 - Neutral: business logic must not live in `projects/`, only project wiring and infrastructure.
 
 ### Confirmation
-`go run ./tools/poly check` runs in the pre-commit hook and in CI and enforces the brick boundaries: components must not import bases, bases must not import other bases, projects import only bases, bricks are consumed through their root package, and nothing imports `development/` or `tools/`. The compiler enforces `internal/`. A violation fails the build.
+`go run ./tools/poly check` runs in the pre-commit hook and in CI and enforces the brick boundaries: components must not import bases, bases must not import other bases, projects import only bases (replaced by ADR-0009: a project imports at least one base and may import components to construct them), bricks are consumed through their root package, and nothing imports `development/` or `tools/`. The compiler enforces `internal/`. A violation fails the build.
 
 ## More information
 - ADR-0007 (the decision to enforce code quality with automated checks)
