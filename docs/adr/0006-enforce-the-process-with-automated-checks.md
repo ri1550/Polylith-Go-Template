@@ -1,7 +1,7 @@
 ---
 status: accepted
-date: 2026-10-07
-decision-makers: [template author]
+date: YYYY-MM-DD
+decision-makers: [you]
 consulted: []
 informed: []
 affects:
@@ -28,14 +28,14 @@ ADR-0005 records how context lives in the codebase, and `AGENTS.md` describes th
 - Local hooks only
 - CI checks only (server)
 - Both layers: local hooks plus CI gated by branch protection
-- For the local layer: a plain git hook script, the `pre-commit` framework (needs Python), or `lefthook` (an extra binary)
+- For the local layer: a plain git hook script, the `pre-commit` framework (an extra runtime to install), or `lefthook` (an extra binary)
 
 ## Decision outcome
 Chosen option: Both layers. A plain git pre-commit hook (`.githooks/pre-commit`, enabled per clone with `make hooks`) gives fast, local feedback: a warning or a blocked commit at the keyboard. CI re-runs the same checks on GitHub, and branch protection makes passing them a requirement to merge. The checks are subcommands of the in-repo tool (ADR-0008): the decision log lint and brick-name validation (`poly adr lint`), ADR index generation (`poly adr index`), and interface-change recording (`poly interface`). The hook ends with a bookkeeping reminder that points to the pre-commit checklist in `AGENTS.md`, so the agent sees it in context before the commit lands.
 
 Both layers over the alternatives because review and good intentions do not scale and are exactly what fails with juniors; a local hook alone can be bypassed (`--no-verify`) and lives only on each machine; CI alone gives slow feedback and lets a broken change get committed and pushed before catching it. Together, the local layer keeps most problems from ever being committed, and the server layer is the unskippable gate.
 
-A plain hook script over `pre-commit` or `lefthook` because it needs no install beyond git and Go, which keeps the setup to one `make hooks`. The price is losing the generic fixers those tools bundle (trailing whitespace, YAML syntax); `gofmt` covers Go files, and the rest is not worth a dependency for now.
+A plain hook script over `pre-commit` or `lefthook` because it needs no install beyond git, Go and the linter, which keeps the setup to one `make hooks`. The price is losing the generic fixers those tools bundle (trailing whitespace, YAML syntax); `gofmt` covers Go files, and the rest is not worth a dependency for now.
 
 Code quality checks (`go build`, `go vet`, `go test`, `golangci-lint`) follow the same two-layer approach and are covered in ADR-0007.
 

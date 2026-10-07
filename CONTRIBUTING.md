@@ -24,7 +24,7 @@ Read the message, do the fix, try again.
 - **Polylith check**: a rule in `AGENTS.md` > Polylith rules was broken. The message names the import and the rule.
 - **go vet / build**: the code does not type-check. The message names file and line.
 - **go test**: a test or an Example failed. The output names it.
-- **ADR lint**: a record under `docs/adr/` has a bad field, a leftover placeholder, or a `superseded by` pointing at nothing. Warnings about names that "do not exist today" are informational: `affects` is historical.
+- **ADR lint**: a record under `docs/adr/` has a bad field, no title, or a `superseded by` pointing at nothing. Warnings (names that "do not exist today", a `YYYY-MM-DD` date, `[you]`) are informational: `affects` is historical, and a record is dated when it is adopted.
 - **ADR index**: nothing to do; the hook regenerated and staged it.
 - **Interface change heads-up** (local, never blocks): the hook printed the exact exported-API lines that changed and which bricks no ADR names. CI will block a pull request that leaves them unrecorded. Record it now: `go run ./tools/poly adr new "<title>"` and set `affects`, or use a marker (next item).
 - **Interface changes are recorded** (CI, blocks): for each named brick, add an ADR whose `affects` names it, reference an existing one in a commit message (`ADR-0012: ...`), or add `[interface-impact: none]` (no consumer can observe it, including a brick nothing uses yet) or `[interface-impact: new]` (additive, ADR declined) to a commit message. A breaking change always needs an ADR.
@@ -41,7 +41,7 @@ Do these in order on a fresh clone, then commit.
 2. **Example bricks.** Delete `components/greeting`, `bases/api`, `projects/hello`, and the marked block in `README.md`. The layout directories keep their `.keep` files. This removes two public surfaces nothing uses, so commit it with `[interface-impact: none]` in the message.
 3. **Inherited tag.** If you cloned instead of using GitHub's **Use this template** button: `git tag -d stable-template-baseline`. Tag your own first known-good state later with `git tag -a stable-1 -m "..."`; `poly diff` uses the newest `stable-*` tag.
 4. **LICENSE.** Replace the copyright holder, or the license.
-5. **ADRs 0001 to 0011** are the template's decisions, dated and attributed to the template author. Keep them; supersede any you reverse with a new ADR. Nothing to fill in.
+5. **ADRs 0001 to 0010** are the decisions this template is built on. Adopting the template adopts them: set each one's `date:` to the day you adopt it and replace `[you]` in `decision-makers:` with the names or roles that did. Supersede any you later reverse with a new ADR.
 6. **Branch protection** (GitHub): Settings > Branches > Add rule for `main`; require a pull request; require the **checks** workflow to pass. This is what makes CI a gate rather than advice.
 
 `make all` must be green after step 2 with zero bricks; it is.

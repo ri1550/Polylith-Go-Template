@@ -10,7 +10,7 @@ There is no Polylith tool for Go, so this program provides the commands the proc
 | `interface --mode ci` | Same diff between the merge base with `origin/<BASE_REF>` and HEAD. Fails unless every changed brick is covered: an ADR in the diff whose `affects` names it (or `*`), a commit message referencing an existing `ADR-NNNN` that does, or a `[interface-impact: none]` or `[interface-impact: new]` marker in a commit message. `breaking` is not a marker. | CI: yes |
 | `interface --between <old> <new>` | The same diff between any two refs. | Never |
 | `adr new <title>` | Creates the next ADR from the template: next number, slug, today's date, title. | Never |
-| `adr lint` | Fails on: bad filename, duplicate number, unparsable or missing front matter fields, template placeholders, invalid status or `interface-impact`, `superseded by` pointing at a missing ADR, malformed `affects`. Warns on: names in `affects` that do not exist today (historical by design), gaps in numbering. | Yes, locally and in CI |
+| `adr lint` | Fails on: bad filename, duplicate number, unparsable or missing front matter fields, the template's title left in place, invalid status or `interface-impact`, `superseded by` pointing at a missing ADR, malformed `affects`. Warns on: names in `affects` that do not exist today (historical by design), a `YYYY-MM-DD` date or `[you]` decision-makers (filled in at adoption), gaps in numbering. | Yes, locally and in CI |
 | `adr index` | Regenerates `docs/adr/index/`: one view per brick or project, each including the workspace-wide (`*`) ADRs, plus a README. The hook stages it. | Refreshes files locally; not enforced in CI (parallel branches would conflict on generated files) |
 
 ## What "public interface" means here

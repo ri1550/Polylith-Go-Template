@@ -30,7 +30,7 @@ var (
 	affectsDirs    = map[string]string{"components": "components", "bases": "bases", "projects": "projects"}
 	placeholderRE  = regexp.MustCompile(`(?i)YYYY-MM-DD|\[you\]|names or roles|ADR-NNNN:|Short title of the decision`)
 	nonAlnumRE     = regexp.MustCompile(`[^a-z0-9]+`)
-	placeholderMsg = "still contains a template placeholder (date, decision-makers or title); fill it in"
+	placeholderMsg = "still carry the template's date or decision-makers placeholder (fill in when adopting the decision)"
 )
 
 // adrRecord is one parsed decision record.
@@ -149,8 +149,9 @@ type lintResult struct {
 	Count    int
 }
 
-// lintADRs validates the decision log. Structure, placeholders, status values
-// and supersede targets are problems. Names in `affects` are historical: an
+// lintADRs validates the decision log. Structure, a template title, status
+// values and supersede targets are problems. Date and decision-maker
+// placeholders are warnings, so a record can be drafted before it is adopted. Names in `affects` are historical: an
 // ADR may be written before its brick exists or outlive it, so an unknown
 // name is only a warning. Gaps in numbering are a warning.
 func lintADRs(root string) (lintResult, error) {
@@ -163,6 +164,7 @@ func lintADRs(root string) (lintResult, error) {
 	var res lintResult
 	seen := map[string]string{}
 	numbers := map[int]bool{}
+	var unadopted []string
 
 	for _, rec := range records {
 		name := rec.File
@@ -187,8 +189,11 @@ func lintADRs(root string) (lintResult, error) {
 				res.Problems = append(res.Problems, fmt.Sprintf("%s: missing required field `%s`", name, field))
 			}
 		}
-		if placeholderRE.MatchString(stringOf(data["date"])) || placeholderRE.MatchString(stringOf(data["decision-makers"])) || placeholderRE.MatchString(rec.Title) {
-			res.Problems = append(res.Problems, fmt.Sprintf("%s: %s", name, placeholderMsg))
+		if placeholderRE.MatchString(rec.Title) {
+			res.Problems = append(res.Problems, fmt.Sprintf("%s: the title is still the template's; give the record a title", name))
+		}
+		if placeholderRE.MatchString(stringOf(data["date"])) || placeholderRE.MatchString(stringOf(data["decision-makers"])) {
+			unadopted = append(unadopted, rec.Number)
 		}
 		status := strings.ToLower(stringOf(data["status"]))
 		if status != "" && !hasAnyPrefix(status, statusPrefix) {
@@ -209,6 +214,9 @@ func lintADRs(root string) (lintResult, error) {
 		}
 	}
 	res.Count = len(seen)
+	if len(unadopted) > 0 {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d record(s) %s: %s", len(unadopted), placeholderMsg, strings.Join(unadopted, ", ")))
+	}
 	for n := 1; n <= len(numbers); n++ {
 		if !numbers[n] {
 			res.Warnings = append(res.Warnings, fmt.Sprintf("numbering has a gap at %04d; numbers are sequential and never reused", n))

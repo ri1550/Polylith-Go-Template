@@ -11,14 +11,13 @@ Generated view of the decision log. Do not edit by hand; run `go run ./tools/pol
 - [ADR-0007: Enforce code quality with automated checks](../0007-enforce-code-quality-with-automated-checks.md) (accepted)
 - [ADR-0008: Build the Polylith tooling in the repository](../0008-build-polylith-tooling-in-repo.md) (accepted)
 - [ADR-0009: Projects are the composition root](../0009-projects-are-the-composition-root.md) (accepted)
-- [ADR-0010: Make the gates exact](../0010-make-the-gates-exact.md) (accepted)
-- [ADR-0011: Example functions are the usage layer](../0011-example-functions-are-the-usage-layer.md) (accepted)
+- [ADR-0010: Make the context system's gates exact](../0010-make-the-gates-exact.md) (accepted)
 
 ## By brick or project
 Each view includes the workspace-wide ADRs (`affects: ["*"]`).
-- base `_all_`: [bases-_all_.md](bases-_all_.md) (8)
-- base `api`: [bases-api.md](bases-api.md) (8)
-- component `_all_`: [components-_all_.md](components-_all_.md) (8)
-- component `greeting`: [components-greeting.md](components-greeting.md) (8)
+- base `_all_`: [bases-_all_.md](bases-_all_.md) (7)
+- base `api`: [bases-api.md](bases-api.md) (7)
+- component `_all_`: [components-_all_.md](components-_all_.md) (7)
+- component `greeting`: [components-greeting.md](components-greeting.md) (7)
 - project `_all_`: [projects-_all_.md](projects-_all_.md) (8)
 - project `hello`: [projects-hello.md](projects-hello.md) (8)

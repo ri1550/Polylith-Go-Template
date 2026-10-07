@@ -82,9 +82,7 @@ func TestLintReportsProblems(t *testing.T) {
 		{"bad impact", map[string]string{"0001-x.md": strings.Replace(goodADR, "interface-impact: none", "interface-impact: huge", 1)}, "interface-impact 'huge'"},
 		{"missing field", map[string]string{"0001-x.md": strings.Replace(goodADR, "date: 2026-01-01\n", "", 1)}, "missing required field `date`"},
 		{"missing affects kind", map[string]string{"0001-x.md": strings.Replace(goodADR, "  bases: []\n", "", 1)}, "missing `bases`"},
-		{"placeholder date", map[string]string{"0001-x.md": strings.Replace(goodADR, "2026-01-01", "YYYY-MM-DD", 1)}, "placeholder"},
-		{"placeholder decision makers", map[string]string{"0001-x.md": strings.Replace(goodADR, "[owner]", "[you]", 1)}, "placeholder"},
-		{"placeholder title", map[string]string{"0001-x.md": strings.Replace(goodADR, "# ADR-0001: Do the thing", "# ADR-NNNN: Short title of the decision", 1)}, "placeholder"},
+		{"placeholder title", map[string]string{"0001-x.md": strings.Replace(goodADR, "# ADR-0001: Do the thing", "# ADR-NNNN: Short title of the decision", 1)}, "title is still the template"},
 		{"superseded by a missing ADR", map[string]string{"0001-x.md": strings.Replace(goodADR, "status: accepted", "status: superseded by ADR-9999", 1)}, "no such ADR exists"},
 	}
 	for _, tc := range cases {
@@ -101,10 +99,10 @@ func TestLintReportsProblems(t *testing.T) {
 	}
 }
 
-func TestLintOnlyWarnsOnHistoricalAffectsAndGaps(t *testing.T) {
+func TestLintOnlyWarnsOnHistoricalAffectsGapsAndPlaceholders(t *testing.T) {
 	root := writeWorkspace(t, map[string]string{
 		"0001-x.md": strings.Replace(goodADR, "[greeting]", "[planned]", 1),
-		"0003-y.md": strings.Replace(goodADR, "ADR-0001", "ADR-0003", 1),
+		"0003-y.md": strings.Replace(strings.Replace(goodADR, "ADR-0001", "ADR-0003", 1), "date: 2026-01-01", "date: YYYY-MM-DD", 1),
 	})
 	res, err := lintADRs(root)
 	if err != nil {
@@ -114,8 +112,8 @@ func TestLintOnlyWarnsOnHistoricalAffectsAndGaps(t *testing.T) {
 		t.Errorf("unknown names and gaps must not block: %v", res.Problems)
 	}
 	joined := strings.Join(res.Warnings, "\n")
-	if !strings.Contains(joined, "'planned'") || !strings.Contains(joined, "gap at 0002") {
-		t.Errorf("expected warnings for the unknown name and the gap, got %v", res.Warnings)
+	if !strings.Contains(joined, "'planned'") || !strings.Contains(joined, "gap at 0002") || !strings.Contains(joined, "placeholder") {
+		t.Errorf("expected warnings for the unknown name, the gap and the placeholder, got %v", res.Warnings)
 	}
 }
 

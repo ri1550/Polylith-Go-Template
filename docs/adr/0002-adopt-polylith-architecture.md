@@ -1,7 +1,7 @@
 ---
 status: accepted
-date: 2026-10-07
-decision-makers: [template author]
+date: YYYY-MM-DD
+decision-makers: [you]
 consulted: []
 informed: []
 affects:
@@ -45,5 +45,4 @@ Polylith over the alternatives because it gives code sharing and clear boundarie
 - ADR-0007 (the decision to enforce code quality with automated checks)
 - ADR-0008 (the in-repo Polylith tooling)
 - Polylith documentation (Clojure; concepts apply, tooling and examples do not): https://polylith.gitbook.io/polylith/
-- Python Polylith tooling, whose workspace this template mirrors: https://davidvujic.github.io/python-polylith-docs/
 - Best Simple System for Now (BSSN): https://dannorth.net/blog/best-simple-system-for-now/

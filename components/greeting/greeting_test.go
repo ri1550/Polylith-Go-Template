@@ -7,7 +7,7 @@ import (
 	"github.com/myorg/workspace/components/greeting"
 )
 
-// ExampleGreet is the usage layer: go doc shows it, go test runs it (ADR-0011).
+// ExampleGreet is the usage layer: go doc shows it, go test runs it (ADR-0010).
 func ExampleGreet() {
 	fmt.Println(greeting.Greet("Ada"))
 	fmt.Println(greeting.Greet("   "))
