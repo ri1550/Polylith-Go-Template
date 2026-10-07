@@ -70,3 +70,33 @@ func TestMarkerAndReferenceParsing(t *testing.T) {
 		t.Error("adr- inside another word must not count")
 	}
 }
+
+func TestPairChangesFoldsRenames(t *testing.T) {
+	before := map[string][]string{"bases/api": {"func Run()"}, "components/x": {"func X()"}}
+	after := map[string][]string{"bases/greetapi": {"func Run()"}, "components/y": {"func Y()"}}
+	renames := map[string]string{"bases/api": "bases/greetapi", "components/x": "components/y"}
+	got := pairChanges(before, after, renames)
+	if len(got) != 2 {
+		t.Fatalf("want 2 changes, got %+v", got)
+	}
+	if got[0].Brick != "bases/greetapi" || got[0].From != "bases/api" || got[0].Status != "renamed" || len(got[0].Added) != 0 {
+		t.Errorf("pure rename reported as %+v", got[0])
+	}
+	if got[1].Status != "renamed, changed" || len(got[1].Removed) != 1 || len(got[1].Added) != 1 {
+		t.Errorf("rename with a surface change reported as %+v", got[1])
+	}
+	// Without git's rename signal the same trees are a removal and an addition.
+	plain := pairChanges(before, after, nil)
+	if len(plain) != 4 {
+		t.Errorf("want removed+new for both bricks, got %+v", plain)
+	}
+}
+
+func TestRenamedBrickIsCoveredByEitherName(t *testing.T) {
+	c := surfaceChange{Brick: "bases/greetapi", From: "bases/api", Status: "renamed"}
+	for _, name := range []string{"api", "greetapi"} {
+		if missing, _ := unrecorded([]surfaceChange{c}, recording{ADRs: []adrScope{scope("0010", map[string][]string{"bases": {name}})}}); len(missing) != 0 {
+			t.Errorf("ADR naming %q should cover the rename, got %v", name, missing)
+		}
+	}
+}
