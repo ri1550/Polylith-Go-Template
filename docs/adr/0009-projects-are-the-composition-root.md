@@ -1,8 +1,8 @@
 ---
 status: accepted
-date: 2026-10-07
-decision-makers: [workspace owner]
-consulted: [template author]
+date: YYYY-MM-DD
+decision-makers: [you]
+consulted: []
 informed: []
 affects:
   components: ["*"]
@@ -44,4 +44,4 @@ The bounded option over the unbounded one because a one-file limit is cheap to c
 ## More information
 - ADR-0002 (the architecture; its project rule is replaced here)
 - `AGENTS.md` > "Polylith rules" (the live wording)
-- Audit of 2026-10-07, agent B, journal step 6 and ADR-0009 of that exercise (the evidence)
+

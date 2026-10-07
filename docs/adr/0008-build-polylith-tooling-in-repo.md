@@ -1,7 +1,7 @@
 ---
 status: accepted
-date: 2026-10-07
-decision-makers: [template author]
+date: YYYY-MM-DD
+decision-makers: [you]
 consulted: []
 informed: []
 affects:
@@ -13,7 +13,7 @@ interface-impact: none
 
 # ADR-0008: Build the Polylith tooling in the repository
 ## Context and problem statement
-Polylith has official tooling for Clojure and a community tool for Python (`poly`), and this workspace's process leans on it: validating brick boundaries, showing dependencies and blast radius, and detecting public interface changes. There is no Polylith tool for Go. We need to decide where those capabilities come from.
+This workspace's process leans on tooling: validating brick boundaries, showing dependencies and blast radius, and detecting public interface changes. Polylith's official tooling exists only for Clojure; there is no Polylith tool for Go. We need to decide where those capabilities come from.
 
 ## Decision drivers
 - The brick rules must be checked by a machine, not by convention (ADR-0007).
@@ -26,12 +26,12 @@ Polylith has official tooling for Clojure and a community tool for Python (`poly
 - Express the import rules declaratively with `golangci-lint`'s `depguard` and detect interface changes by file path
 - Use `golang.org/x/exp/cmd/apidiff` for interface changes plus `depguard` for boundaries
 - A small Go program in the repository (`tools/poly`) that implements the checks over `go list` and `git`
-- Port the Python Polylith tool
+- Port the Clojure `poly` tool's command set wholesale
 
 ## Decision outcome
 Chosen option: a small Go program at `tools/poly`, run with `go run ./tools/poly <command>`, in the same module and checked by the same compiler, tests and linter as everything else. It provides `check` (layout and import-direction rules over `go list -json`), `deps` (what each brick uses, what each project pulls in), `diff` (bricks and projects changed since the last `stable-*` tag), `interface` (the exported API of every brick root package, diffed between two git trees), `adr lint` and `adr index`.
 
-The interface check parses each brick's root package with `go/parser` at two git trees (via `git show`, no checkout needed), renders every exported declaration without bodies or comments, and reports the lines added or removed. It therefore reacts to exactly what consumers can see, including additive changes that `apidiff` would call compatible but that the process still wants recorded, and ignores renamed locals, reformatting and new comments. `apidiff` needs both versions type-checked and built, which is slower and heavier for the same question. `depguard` can express most of the import rules but not "a base may import its own subpackages and no other base", and file-path heuristics for interface changes would fire on every implementation edit in a root package. Porting the Python tool would carry over features (per-project dependency validation, packaging) that Go's single module makes unnecessary (ADR-0004).
+The interface check parses each brick's root package with `go/parser` at two git trees (via `git show`, no checkout needed), renders every exported declaration without bodies or comments, and reports the lines added or removed. It therefore reacts to exactly what consumers can see, including additive changes that `apidiff` would call compatible but that the process still wants recorded, and ignores renamed locals, reformatting and new comments. `apidiff` needs both versions type-checked and built, which is slower and heavier for the same question. `depguard` can express most of the import rules but not "a base may import its own subpackages and no other base", and file-path heuristics for interface changes would fire on every implementation edit in a root package. Porting the Clojure tool's full command set would carry over features (per-project dependency validation, packaging, profiles) that Go's single module makes unnecessary (ADR-0004).
 
 Scaffolding (`create`) and an `info` overview were deliberately left out: a brick is a directory with one file, and `go doc`, `go list` and `poly deps` already answer the overview questions. Add them when a real need appears.
 
@@ -48,5 +48,5 @@ Scaffolding (`create`) and an `info` overview were deliberately left out: a bric
 - ADR-0002 (the architecture this tool enforces)
 - ADR-0006 and ADR-0007 (the gates that call it)
 - `tools/poly/README.md`
-- Python Polylith tooling, the reference for the command set: https://davidvujic.github.io/python-polylith-docs/
+- The Clojure `poly` tool, the reference for the command vocabulary: https://polylith.gitbook.io/poly/
 - apidiff: https://pkg.go.dev/golang.org/x/exp/cmd/apidiff

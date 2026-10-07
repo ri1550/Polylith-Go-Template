@@ -123,7 +123,7 @@ The hook enforces structure. Walk this for what it cannot see:
 ### ADRs
 - Location: `docs/adr/`, one global numbered sequence. Create with `go run ./tools/poly adr new "<title>"`, which picks the next number, fills the date, and copies `0000-adr-template.md` (MADR 4.0 plus the Polylith fields).
 - Numbers are sequential and never reused. The lint warns on a gap and fails on a duplicate.
-- Front matter: `status`, `date`, `decision-makers`, `affects` (components, bases, projects the decision touches; `*` means all), `interface-impact` (`none` | `new` | `breaking`). The lint fails on template placeholders.
+- Front matter: `status`, `date`, `decision-makers`, `affects` (components, bases, projects the decision touches; `*` means all), `interface-impact` (`none` | `new` | `breaking`). `date` and `decision-makers` are filled in when the decision is adopted; until then the lint only warns about the placeholders.
 - `affects` is historical: it may name a brick that does not exist yet or no longer exists. The lint warns, never blocks. Never edit an old ADR to track a rename.
 - Lifecycle: `proposed` → `accepted` → `deprecated` or `superseded by ADR-NNNN`. The status line is the only field you may edit on an existing ADR; the lint checks the target exists.
 - One line per paragraph (no hard wrapping), so `grep -l` matches once per hit.

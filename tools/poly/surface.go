@@ -16,9 +16,9 @@ import (
 // declaration, rendered one per line without bodies or comments, sorted.
 // files maps a file name to its source; _test.go files should not be passed.
 //
-// This is what "the brick's public interface" means in this workspace: the
-// Go equivalent of a Polylith __init__.py or interface.clj is the set of
-// exported identifiers in the brick's root package. The definition:
+// This is what "the brick's public interface" means in this workspace: Go
+// has no interface file, so the set of exported identifiers in the brick's
+// root package is the contract. The definition:
 //   - exported functions, methods on exported types, exported types (with
 //     unexported struct fields removed), exported constants with their
 //     values, and exported variables without their initializers (a sentinel
