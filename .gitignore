@@ -3,3 +3,5 @@ dist/
 *.test
 *.out
 coverage.*
+# `go build ./...` writes a binary here when tools/poly is the only main package.
+/poly
