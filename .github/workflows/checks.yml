@@ -20,26 +20,32 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: go.mod and go.sum are tidy
+        run: go mod tidy -diff
+
       - name: Build
         run: go build ./...
 
-      - name: Tests
-        run: go test ./...
+      - name: Polylith check (brick boundaries and layout)
+        run: go run ./tools/poly check
+
+      - name: Tests (with the race detector, in random order)
+        run: go test -race -shuffle=on ./...
 
       - name: Lint (golangci-lint, includes go vet and gofmt)
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0
 
-      - name: Polylith check (brick boundaries and layout)
-        run: go run ./tools/poly check
-
-      - name: ADR front matter lint
+      - name: ADR lint
         run: go run ./tools/poly adr lint
 
-      - name: Interface change must be recorded
+      - name: Interface changes are recorded
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
         run: |
           git fetch origin "$BASE_REF" || true
           go run ./tools/poly interface --mode ci
+
+      - name: Known vulnerabilities in dependencies
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

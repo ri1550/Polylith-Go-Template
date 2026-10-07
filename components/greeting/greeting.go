@@ -1,11 +1,11 @@
 // Package greeting turns a name into a friendly greeting.
 //
-// Public interface (the contract other bricks depend on): Greet.
-// Everything unexported is implementation and free to change as long as the
-// tests keep passing.
+// Blank input is normalized here, so every caller gets the same fallback
+// instead of each re-implementing it. Everything unexported is implementation
+// and free to change while the tests and the Example keep passing.
 //
-// EXAMPLE brick demonstrating the interface/implementation split. Delete it
-// once you have your own components.
+// EXAMPLE brick showing the interface/implementation split. Delete it once
+// you have your own components.
 package greeting
 
 import "strings"

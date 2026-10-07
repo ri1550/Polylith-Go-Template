@@ -17,11 +17,14 @@ const usage = `poly: Polylith workspace tooling for this repository.
 
 Usage (from the workspace root):
   go run ./tools/poly check                  validate brick boundaries and the workspace layout
-  go run ./tools/poly deps                   show what each brick uses and what each project pulls in
-  go run ./tools/poly diff [--since <ref>]   show bricks and projects changed since the last stable-* tag
+  go run ./tools/poly deps                   what each brick uses and is used by; what each project ships
+  go run ./tools/poly diff [--since <ref>]   bricks and projects changed since the last stable-* tag
   go run ./tools/poly interface [--mode pre-commit|ci]
-                                             report public interface (exported API) changes and
-                                             whether they are recorded in an ADR
+                                             print public interface (exported API) changes and check
+                                             that an ADR names every changed brick
+  go run ./tools/poly interface --between <old> <new>
+                                             print the public interface changes between two refs
+  go run ./tools/poly adr new <title>        create the next ADR from the template
   go run ./tools/poly adr lint               validate the decision log under docs/adr/
   go run ./tools/poly adr index              regenerate docs/adr/index/
 
@@ -58,6 +61,8 @@ func main() {
 			code, err = runADRLint()
 		case "index":
 			code, err = runADRIndex()
+		case "new":
+			code, err = runADRNew(args[2:])
 		default:
 			fmt.Fprint(os.Stderr, usage)
 			os.Exit(2)

@@ -1,27 +1,20 @@
 # Architecture Decision Records
-This directory is the single decision log for the workspace. Every architecturally significant decision lives here as a numbered, immutable Markdown file.
+The single decision log for the workspace. Every architecturally significant decision is a numbered, immutable Markdown file here. Create one with `go run ./tools/poly adr new "<title>"`.
 
-## Why a central log (and not per-brick)
-- Most significant decisions span multiple bricks or the whole workspace (deployment shape, dependency rules, tooling, interface compatibility policy). They have no single brick home.
-- Bricks move: components get split, merged, renamed, or promoted across projects. ADRs are immutable records that must outlive the current shape of the code.
-- One global sequence means one greppable decision log and compatibility with ADR tooling (MADR, adr-tools, log4brains), which all assume one directory.
+## Why one central log
+- Significant decisions usually span bricks or the whole workspace; they have no single brick home.
+- Bricks are split, merged, renamed and deleted; records must outlive the current shape of the code.
+- One sequence is one greppable log and works with ADR tooling (MADR, adr-tools, log4brains).
 
-Discoverability per brick is preserved by:
-1. The `affects:` field in each ADR's front matter, which names the bricks and projects the decision touches. `grep -rl "greeting" docs/adr` finds them, and `docs/adr/index/` holds a generated per-brick view.
-2. An optional one-line pointer in a brick's package comment when the decision changes that brick's public contract, e.g. `// See ADR-0012 for the public interface contract.`
+Per-brick discoverability comes from the `affects` field and the generated index under `index/` (one view per brick or project, each including the workspace-wide ADRs). A one-line `See ADR-NNNN.` in a brick's package comment points the other way.
 
 ## Conventions
-- Filenames: `NNNN-short-kebab-title.md`, zero padded, e.g. `0012-deploy-projects-as-containers.md`.
-- Numbers are assigned sequentially and never reused.
-- ADRs are immutable. To reverse or change a decision, write a new ADR and set the old one's status to `superseded by ADR-NNNN`.
-- `0000-adr-template.md` is the template. Copy it, do not edit it in place.
-
-## Status lifecycle
-`proposed` -> `accepted` -> (`deprecated` | `superseded by ADR-NNNN`)
-
-## Polylith-specific fields
-- `affects`: the components, bases, and projects the decision touches.
-- `interface-impact`: whether the decision changes a public brick interface (the exported API of the brick's root package). `none`, `new`, or `breaking`. This is the field that matters most in a Polylith workspace, because an interface change ripples to every project that consumes the brick, while an implementation change behind a stable interface stays local.
+- Filenames `NNNN-short-kebab-title.md`; numbers sequential, never reused.
+- Immutable. To change a decision, write a new ADR and set the old one's status to `superseded by ADR-NNNN`. The status line is the only edit allowed.
+- `affects` is historical: it may name a brick that does not exist yet or no longer exists. The lint warns, never blocks, and you never edit an old ADR to follow a rename.
+- `interface-impact`: `none` | `new` | `breaking`, meaning whether the decision changes a brick's exported API. A `breaking` decision is the one that must be recorded here, because it ripples to every project that consumes the brick.
+- Status lifecycle: `proposed` → `accepted` → `deprecated` | `superseded by ADR-NNNN`. An ADR drafted by an agent stays `proposed` until a person accepts it.
+- `0000-adr-template.md` is the template; `poly adr new` copies it. Do not edit it in place.
 
 ## Enforcement
-Where a decision can be checked by tooling, record how in the ADR's `Confirmation` section. The workspace gives you `go run ./tools/poly check` for dependency and layout rules and the compiler for `internal/` visibility; lean on those rather than prose where you can.
+Where a decision can be checked by tooling, say how in its `Confirmation` section. The workspace offers `go run ./tools/poly check` for layout and dependency rules, `poly interface` for surface changes, and the compiler for `internal/`.

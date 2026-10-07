@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // runCheck validates the workspace layout and the brick dependency rules.
@@ -81,9 +82,8 @@ func checkWorkspace(ws *Workspace) []string {
 				problems = append(problems, fmt.Sprintf(
 					"%s: a brick must not be package main; bricks are libraries, executables live in projects/", p.Rel))
 			}
-			if p.IsRoot() && p.Kind == KindProject && p.Name != "main" {
-				problems = append(problems, fmt.Sprintf(
-					"%s: a project's root package must be package main (it is the deployable executable)", p.Rel))
+			if p.IsRoot() && p.Kind == KindProject {
+				problems = append(problems, checkProject(p, byImport)...)
 			}
 		}
 		for _, imp := range p.Imports {
@@ -97,6 +97,32 @@ func checkWorkspace(ws *Workspace) []string {
 		}
 	}
 	sort.Strings(problems)
+	return problems
+}
+
+// checkProject applies the structural rules that keep a project to wiring:
+// package main, one Go file, at least one base (ADR-0009).
+func checkProject(p *Pkg, byImport map[string]*Pkg) []string {
+	var problems []string
+	if p.Name != "main" {
+		problems = append(problems, fmt.Sprintf(
+			"%s: a project's root package must be package main (it is the deployable executable)", p.Rel))
+	}
+	if p.GoFiles > 1 {
+		problems = append(problems, fmt.Sprintf(
+			"%s: a project is wiring only and must be a single Go file (found %d); move logic into a base or component", p.Rel, p.GoFiles))
+	}
+	importsBase := false
+	for _, imp := range p.Imports {
+		if t, ok := byImport[imp]; ok && t.Kind == KindBase {
+			importsBase = true
+			break
+		}
+	}
+	if !importsBase && p.Err == "" {
+		problems = append(problems, fmt.Sprintf(
+			"%s: a project must import at least one base; main() wires components into a base and runs it", p.Rel))
+	}
 	return problems
 }
 
@@ -121,7 +147,10 @@ func importRule(from, to *Pkg) string {
 	}
 	// to is a component or a base in another brick.
 	if !to.IsRoot() {
-		return "use the brick through its root package (its public interface), not a subpackage; move private code to internal/"
+		if strings.Contains(to.Rel+"/", "/internal/") {
+			return fmt.Sprintf("%s is private to its brick (the compiler rejects this too); use the brick's root package", to.Rel)
+		}
+		return "use the brick through its root package (its public interface), not a subpackage; if the subpackage is private, move it under internal/"
 	}
 	switch from.Kind {
 	case KindComponent:
@@ -132,10 +161,6 @@ func importRule(from, to *Pkg) string {
 		if to.Kind == KindBase {
 			return "a base must not import another base; share the code as a component instead"
 		}
-	case KindProject:
-		if to.Kind == KindComponent {
-			return "projects import only bases; business logic is reached through the base, not called directly"
-		}
 	}
-	return ""
+	return "" // projects may import bases and components: main() is the composition root (ADR-0009)
 }

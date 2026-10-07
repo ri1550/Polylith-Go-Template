@@ -47,17 +47,45 @@ func (s *Store[T]) Put(v T) {}
 		"func Greet(name string) string",
 		"type Config struct { Name string `json:\"name\"`; Logger }",
 		"type Store[T any] struct{}",
-		"var Default = Config{}",
+		"var Default", // the initializer is not part of the contract
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("surface mismatch\n got: %q\nwant: %q", got, want)
 	}
 }
 
-func TestSurfaceIgnoresBodiesAndTestFiles(t *testing.T) {
-	a := map[string][]byte{"x.go": []byte("package x\nfunc F() int { return 1 }\n")}
+func TestSurfaceIncludesUnexportedTypesReachableFromExportedSignatures(t *testing.T) {
+	src := `package x
+
+type builder struct{ n string; Verbose bool }
+
+// NewBuilder returns a builder callers can use.
+func NewBuilder() *builder { return &builder{} }
+
+func (b *builder) Name(n string) *builder { b.n = n; return b }
+
+type orphan struct{}
+
+func (o orphan) Unreachable() {}
+`
+	got, err := surface(map[string][]byte{"x.go": []byte(src)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"func (b *builder) Name(n string) *builder",
+		"func NewBuilder() *builder",
+		"type builder struct{ Verbose bool }",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("surface mismatch\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestSurfaceIgnoresBodiesCommentsVarInitializersAndTestFiles(t *testing.T) {
+	a := map[string][]byte{"x.go": []byte("package x\nimport \"errors\"\nvar ErrNope = errors.New(\"a\")\nfunc F() int { return 1 }\n")}
 	b := map[string][]byte{
-		"x.go":      []byte("package x\n// F is documented now.\nfunc F() int {\n\treturn 2\n}\n"),
+		"x.go":      []byte("package x\nimport \"errors\"\n// ErrNope is documented now.\nvar ErrNope = errors.New(\"b\")\n// F is documented now.\nfunc F() int {\n\treturn 2\n}\n"),
 		"x_test.go": []byte("package x_test\nfunc Helper() {}\n"),
 	}
 	sa, err := surface(a)

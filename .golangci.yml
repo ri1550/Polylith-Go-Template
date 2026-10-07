@@ -1,19 +1,24 @@
-# golangci-lint v2 configuration. Runs locally (if installed) via the pre-commit
-# hook and always in CI. See ADR-0007.
+# golangci-lint v2 configuration. The pre-commit hook and CI both run it; the
+# linter is a required install. See ADR-0007 and ADR-0010.
+# development/ is outside ./... (go.mod `ignore`), so nothing here excludes it.
 version: "2"
 
 linters:
   # The standard set: errcheck, govet, ineffassign, staticcheck, unused.
   default: standard
   enable:
-    # Tests must live in an external _test package, so they exercise the brick
+    # Tests live in an external _test package, so they exercise the brick
     # through its public interface (the same thing other bricks see).
     - testpackage
+    # Every package has a package comment and every exported name a doc
+    # comment: that is the prose context layer, and `go doc` shows it.
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: package-comments
+        - name: exported
   exclusions:
-    paths:
-      # Scratch programs must still compile and vet (go build ./... covers
-      # them) but are not held to the linter.
-      - ^development/
     rules:
       # The in-repo tooling is package main and tests its own helpers directly.
       - path: ^tools/
@@ -23,3 +28,9 @@ formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      # Workspace imports group below the standard library and third-party
+      # modules, so a brick's dependencies on other bricks read at a glance.
+      local-prefixes:
+        - github.com/myorg/workspace

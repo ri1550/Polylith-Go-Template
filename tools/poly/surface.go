@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -17,7 +18,13 @@ import (
 //
 // This is what "the brick's public interface" means in this workspace: the
 // Go equivalent of a Polylith __init__.py or interface.clj is the set of
-// exported identifiers in the brick's root package.
+// exported identifiers in the brick's root package. The definition:
+//   - exported functions, methods on exported types, exported types (with
+//     unexported struct fields removed), exported constants with their
+//     values, and exported variables without their initializers (a sentinel
+//     error's identity is the contract, its message is not);
+//   - plus unexported types, and their exported methods, that appear in
+//     any of those signatures, since callers can hold and use them.
 func surface(files map[string][]byte) ([]string, error) {
 	fset := token.NewFileSet()
 	names := make([]string, 0, len(files))
@@ -27,6 +34,12 @@ func surface(files map[string][]byte) ([]string, error) {
 	sort.Strings(names)
 
 	var lines []string
+	type hidden struct {
+		typeName string
+		line     string
+	}
+	var candidates []hidden // declarations on unexported types, included only if reachable
+
 	for _, name := range names {
 		f, err := parser.ParseFile(fset, name, files[name], parser.SkipObjectResolution)
 		if err != nil {
@@ -38,10 +51,20 @@ func surface(files map[string][]byte) ([]string, error) {
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
-				if !d.Name.IsExported() || (d.Recv != nil && !exportedReceiver(d.Recv)) {
+				if !d.Name.IsExported() {
 					continue
 				}
 				d.Body, d.Doc = nil, nil
+				if d.Recv != nil {
+					recv := receiverName(d.Recv)
+					if recv == "" {
+						continue
+					}
+					if !ast.IsExported(recv) {
+						candidates = append(candidates, hidden{recv, render(fset, d)})
+						continue
+					}
+				}
 				lines = append(lines, render(fset, d))
 			case *ast.GenDecl:
 				if d.Tok == token.IMPORT {
@@ -50,14 +73,16 @@ func surface(files map[string][]byte) ([]string, error) {
 				for _, spec := range d.Specs {
 					switch s := spec.(type) {
 					case *ast.TypeSpec:
-						if !s.Name.IsExported() {
-							continue
-						}
 						s.Doc, s.Comment = nil, nil
 						stripUnexportedFields(s.Type)
-						lines = append(lines, "type "+render(fset, s))
+						line := "type " + render(fset, s)
+						if s.Name.IsExported() {
+							lines = append(lines, line)
+						} else {
+							candidates = append(candidates, hidden{s.Name.Name, line})
+						}
 					case *ast.ValueSpec:
-						if !keepExportedNames(s) {
+						if !keepExportedNames(s, d.Tok == token.VAR) {
 							continue
 						}
 						lines = append(lines, d.Tok.String()+" "+render(fset, s))
@@ -66,15 +91,31 @@ func surface(files map[string][]byte) ([]string, error) {
 			}
 		}
 	}
+
+	// Pull in unexported types (and their methods) that exported declarations expose.
+	for changed := true; changed; {
+		changed = false
+		joined := strings.Join(lines, "\n")
+		var rest []hidden
+		for _, c := range candidates {
+			if regexp.MustCompile(`\b` + regexp.QuoteMeta(c.typeName) + `\b`).MatchString(joined) {
+				lines = append(lines, c.line)
+				changed = true
+			} else {
+				rest = append(rest, c)
+			}
+		}
+		candidates = rest
+	}
 	sort.Strings(lines)
 	return lines, nil
 }
 
-// exportedReceiver reports whether a method's receiver type is exported,
-// looking through pointers and type parameters.
-func exportedReceiver(recv *ast.FieldList) bool {
+// receiverName returns the receiver's type name, looking through pointers
+// and type parameters, or "" if it is not a plain identifier.
+func receiverName(recv *ast.FieldList) string {
 	if recv == nil || len(recv.List) == 0 {
-		return false
+		return ""
 	}
 	expr := recv.List[0].Type
 	for {
@@ -86,9 +127,9 @@ func exportedReceiver(recv *ast.FieldList) bool {
 		case *ast.IndexListExpr:
 			expr = e.X
 		case *ast.Ident:
-			return e.IsExported()
+			return e.Name
 		default:
-			return false
+			return ""
 		}
 	}
 }
@@ -144,9 +185,9 @@ func exportedTypeName(expr ast.Expr) bool {
 }
 
 // keepExportedNames narrows a const/var spec to its exported names and reports
-// whether any remain. Values are kept in step with the names when possible,
-// since a changed constant value is a changed contract.
-func keepExportedNames(s *ast.ValueSpec) bool {
+// whether any remain. Constant values are kept in step with the names (a
+// changed constant is a changed contract); variable initializers are dropped.
+func keepExportedNames(s *ast.ValueSpec, dropValues bool) bool {
 	var names []*ast.Ident
 	var values []ast.Expr
 	paired := len(s.Values) == len(s.Names)
@@ -162,7 +203,10 @@ func keepExportedNames(s *ast.ValueSpec) bool {
 		return false
 	}
 	s.Names = names
-	if paired {
+	switch {
+	case dropValues:
+		s.Values = nil
+	case paired:
 		s.Values = values
 	}
 	s.Doc, s.Comment = nil, nil
