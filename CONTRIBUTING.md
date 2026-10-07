@@ -1,75 +1,50 @@
 # Contributing
-This repository keeps its own context: why things are the way they are, what each part does, and how to work on it. A few small automated checks keep that context honest so the codebase stays understandable as it grows.
+This repository keeps its own context: why things are the way they are, what each part does, how to work on it. Small automated checks keep that context honest. You do not need to memorise the process; the checks guide you and the coding agent does the paperwork (ADRs, tests, Examples, comments). This file is setup and the day-to-day loop. The reasoning is in `AGENTS.md`.
 
-You do not need to memorize how it all works. The checks guide you, and the AI agent does most of the paperwork (writing ADRs, tests, and notes) for you. Your job is mostly to follow the setup below once, then answer the agent's questions as you work.
-
-If you want the full reasoning, read `AGENTS.md`. This file is just how to get set up and what to do day to day.
-
-## One-time setup (do this once after cloning)
-1. **Install Go** 1.27 or newer: https://go.dev/dl/ (or your version manager).
-
-2. **Turn the checks on for this clone:**
+## One-time setup (after cloning)
+1. Install Go 1.27 or newer: https://go.dev/dl/
+2. Install golangci-lint (required; the hook refuses to run without it): https://golangci-lint.run/docs/welcome/install/
+3. Turn the checks on for this clone:
 
        make hooks
 
-   This points git at the hook script in `.githooks/`, so the checks run every time you commit. Nothing else to install.
-
-3. **Optional: install golangci-lint** so the linter also runs locally: https://golangci-lint.run/docs/welcome/install/. If it is missing, the hook says so and skips it; CI runs it regardless.
-
-That is it. To run everything by hand at any time:
-
-    make all        # check + test + lint
+That is it. `make all` runs everything by hand at any time.
 
 ## The everyday loop
-1. **Edit your code.** Ask the agent for help; it knows the rules in `AGENTS.md`.
-2. **Commit.** When you run `git commit`, the checks run first. If something is wrong, the commit stops and tells you what to fix. Fix it and commit again.
-3. **Push** your branch to GitHub.
-4. **Open a pull request.** GitHub runs the same checks on its servers, plus the tests.
-5. **Merge** once the checks are green. With branch protection on (see below), the button stays locked until they pass.
+1. Edit. Ask the agent; it follows `AGENTS.md`.
+2. Commit. The hook runs: gofmt, `poly check`, `go vet`, `go test`, the ADR lint, the ADR index (regenerated and staged for you), the interface heads-up, golangci-lint. If something is wrong the commit stops and says what to fix.
+3. Push your branch and open a pull request. CI runs the same checks, plus `-race`, `go mod tidy -diff`, the interface gate and `govulncheck`.
+4. Merge when green. With branch protection on, the button stays locked until then.
 
-The checks on your machine are the fast warning. The checks on GitHub are the real gate. Same checks, two moments.
+Local is the fast warning. CI is the gate.
 
-## When a check stops you, here is what it means
-You do not need to understand the internals. Read the message, do the fix, try again.
+## When a check stops you
+Read the message, do the fix, try again.
+- **gofmt**: run `gofmt -w <file>`, `git add`, commit again.
+- **Polylith check**: a rule in `AGENTS.md` > Polylith rules was broken. The message names the import and the rule.
+- **go vet / build**: the code does not type-check. The message names file and line.
+- **go test**: a test or an Example failed. The output names it.
+- **ADR lint**: a record under `docs/adr/` has a bad field, a leftover placeholder, or a `superseded by` pointing at nothing. Warnings about names that "do not exist today" are informational: `affects` is historical.
+- **ADR index**: nothing to do; the hook regenerated and staged it.
+- **Interface change heads-up** (local, never blocks): the hook printed the exact exported-API lines that changed and which bricks no ADR names. CI will block a pull request that leaves them unrecorded. Record it now: `go run ./tools/poly adr new "<title>"` and set `affects`, or use a marker (next item).
+- **Interface changes are recorded** (CI, blocks): for each named brick, add an ADR whose `affects` names it, reference an existing one in a commit message (`ADR-0012: ...`), or add `[interface-impact: none]` (no consumer can observe it, including a brick nothing uses yet) or `[interface-impact: new]` (additive, ADR declined) to a commit message. A breaking change always needs an ADR.
+- **golangci-lint**: the message names file, line and linter. "not on PATH" means install it or add `$(go env GOPATH)/bin` to your PATH.
+- **go mod tidy -diff** (CI): run `go mod tidy` and commit `go.mod` and `go.sum`.
 
-- **"gofmt" failed.** A Go file is not formatted. Run `gofmt -w <file>`, `git add` it, commit again.
+## Setting up the repository (admin, once)
+Do these in order on a fresh clone, then commit.
+1. **Module path.** Replace `github.com/myorg/workspace` everywhere (portable: `-i.bak` then delete the backups):
 
-- **"go build" or "go vet" failed.** The code does not compile, or vet found a classic mistake. The message names the file and line. Ask the agent to fix it, or fix it yourself and commit again.
+       grep -rl --include='*.go' --include='go.mod' --include='*.yml' --include='*.md' 'github.com/myorg/workspace' . \
+         | xargs sed -i.bak 's#github.com/myorg/workspace#github.com/<org>/<repo>#g' && find . -name '*.bak' -delete
 
-- **"Polylith check" failed.** A brick boundary was crossed: a component importing a base, a project importing a component directly, an import of a brick's subpackage instead of its root package, or Go code outside the layout. The message names the import and the rule. Ask the agent to help move the code to the right place.
+2. **Example bricks.** Delete `components/greeting`, `bases/api`, `projects/hello`, and the marked block in `README.md`. The layout directories keep their `.keep` files. This removes two public surfaces nothing uses, so commit it with `[interface-impact: none]` in the message.
+3. **Inherited tag.** If you cloned instead of using GitHub's **Use this template** button: `git tag -d stable-template-baseline`. Tag your own first known-good state later with `git tag -a stable-1 -m "..."`; `poly diff` uses the newest `stable-*` tag.
+4. **LICENSE.** Replace the copyright holder, or the license.
+5. **ADRs 0001 to 0011** are the template's decisions, dated and attributed to the template author. Keep them; supersede any you reverse with a new ADR. Nothing to fill in.
+6. **Branch protection** (GitHub): Settings > Branches > Add rule for `main`; require a pull request; require the **checks** workflow to pass. This is what makes CI a gate rather than advice.
 
-- **Tests failed (on GitHub).** One or more tests are failing. The output names the file and test. Fix the code or the test, then push again. Run `go test ./...` locally first.
-
-- **"ADR front matter lint" failed.** A decision record under `docs/adr/` is missing a field or has an invalid value. The message says which file and which field. Copy `docs/adr/0000-adr-template.md` if you are starting one from scratch, or ask the agent to fix the fields.
-
-- **"Interface change heads-up" (local).** You changed a brick's public interface: an exported function, type, field or constant in its root package. The hook prints exactly what changed. This is a warning, not a block. If it is a real change to what other code depends on, ask the agent to draft an ADR for it. You will need one before the pull request can merge.
-
-- **"Interface change must be recorded" (on GitHub) failed.** Same situation, but now it blocks the merge. Do one of: add an ADR describing the change (best, the agent can draft it), mention an ADR in a commit message like `ADR-NNNN: ...`, or if the edit was not really a contract change, add `[interface-impact: none]` to a commit message. Note: `[interface-impact: none]` is self-reported — code review is the backstop against misuse.
-
-- **"golangci-lint" failed.** The linter found something: an unchecked error, unused code, a test in the wrong package. The message names the file, line and linter. Ask the agent to fix it, or fix it yourself and commit again.
-
-- **"Refresh the ADR index" stopped the commit.** The check updated the generated index under `docs/adr/index/`. Nothing is wrong. Just `git add docs/adr/index` and commit again. (This only runs locally; CI does not enforce index freshness to avoid merge conflicts on parallel branches.)
-
-## If you are setting up the repository (admin, one time)
-Before anything else, replace the placeholders left by the starter:
-- **Module path**: change `github.com/myorg/workspace` in `go.mod` and in every import to your own path (see the Namespace section of `README.md` for a one-liner).
-- **ADR dates**: fill in the `date:` field in each ADR under `docs/adr/` with the date you are formally adopting the decision.
-- **ADR decision-makers**: replace `[you]` in each ADR's front matter with the actual names or roles.
-- **Example bricks**: delete `components/greeting`, `bases/api` and `projects/hello` once you have your own bricks.
-- **LICENSE**: replace the copyright holder, or the license, with your own.
-- **Inherited tags**: if you cloned or forked this repository instead of using GitHub's **Use this template** button, delete the template's own baseline tags. Otherwise `poly diff` compares your bricks against the template's baseline instead of your own.
-
-      git tag -d $(git tag -l 'stable-*')
-
-Then, make the checks a hard gate by configuring GitHub branch protection:
-1. Go to **Settings > Branches**.
-2. Under **Branch protection rules**, click **Add rule**.
-3. Branch name pattern: `main`.
-4. Tick **Require a pull request before merging**.
-5. Tick **Require status checks to pass before merging**, then select the **checks** workflow.
-6. Click **Create** (or **Save changes**).
-
-Now no change can reach `main` without passing the checks, no matter who or what made it. This is the piece that actually enforces the process; everything else is guidance that makes following it easy.
+`make all` must be green after step 2 with zero bricks; it is.
 
 ## Why all of this
-The short version: context that lives next to the code and stays accurate is worth far more than docs that drift. The checks stop the context from drifting. The full reasoning, and the map of where every kind of context lives, is in `AGENTS.md`. The decisions behind the setup are in `docs/adr/`.
+Context that lives next to the code and is kept true by checks is worth more than documents that drift. `AGENTS.md` has the map of where every kind of context lives; `docs/adr/` has the decisions.

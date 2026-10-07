@@ -1,61 +1,63 @@
 # Workspace
-A Polylith monorepo in Go. Code lives as small bricks (components and bases) that combine into deployable projects, and the repo keeps its own context so anyone, human or AI agent, can understand why things are the way they are.
+A Polylith monorepo in Go. Code lives as small bricks (components and bases) that projects assemble into deployables, and the repository keeps its own context, so a human or a coding agent can learn why any part is the way it is in four cheap reads.
+
+If you are a coding agent: read `AGENTS.md` first. It is the operating manual.
 
 ## Getting started
-You need [Go](https://go.dev/dl/) 1.27 or newer and git. Then, from this directory:
+You need [Go](https://go.dev/dl/) 1.27 or newer, git, and [golangci-lint](https://golangci-lint.run/docs/welcome/install/). Then, from this directory:
 
-    git init        # if this is not already a git repo
-    make hooks      # turn the pre-commit checks on for this clone
+    make hooks      # turn the pre-commit checks on for this clone (once)
+    make all        # check, test, lint: should be green
 
-Optional but recommended: install [golangci-lint](https://golangci-lint.run/docs/welcome/install/) so the hook can lint locally. CI runs it either way.
-
-## Run it
-The example project builds the `api` base, which delegates to the `greeting` component:
+## Run the example
+<!-- examples:start (delete this block when you delete the example bricks) -->
+The example project wires the `greeting` component into the `api` base:
 
     go run ./projects/hello          # -> Hello, world!
     go run ./projects/hello Ada      # -> Hello, Ada!
+    go doc -all ./components/greeting   # the component's public interface
+
+`components/greeting`, `bases/api` and `projects/hello` exist to show the shapes: a component with an Example, a base that receives its dependencies, a project that constructs and wires. Delete them once you have your own.
+<!-- examples:end -->
 
 ## Common commands
 
-    go test ./...                      # run all tests
-    make check                         # build, vet, brick boundaries, decision log
+    make check                         # layout and boundaries, type check, decision log, tidy go.mod
+    make test                          # go test -race -shuffle=on ./...
     make lint                          # golangci-lint
-    make build                         # build every project into bin/
-    go doc -all ./components/greeting  # a brick's public interface, with docs
-    go run ./tools/poly check          # validate the workspace (boundaries, layout)
-    go run ./tools/poly deps           # what each brick uses, what each project pulls in
+    make build                         # every project into bin/
+    go run ./tools/poly check          # brick boundaries and layout
+    go run ./tools/poly deps           # what each brick uses; what each project ships
     go run ./tools/poly diff           # bricks and projects changed since the last stable-* tag
-    go run ./tools/poly interface      # what changed in a brick's public interface
+    go run ./tools/poly interface      # exported API changes in the staged tree
+    go run ./tools/poly adr new "..."  # start a decision record
 
 ## Create new bricks
-There is no scaffolding command; a brick is a directory with a Go package in it:
+A brick is a directory with a Go package in it; there is no scaffolding command.
 
-    mkdir components/<name>            # business logic, shared
-    mkdir bases/<name>                 # a thin entry point
-    mkdir projects/<name>              # a deployable: package main that calls a base
+    mkdir -p components/<name>     # business logic: package <name>, exported API, _test.go beside it
+    mkdir -p bases/<name>          # a thin entry point: parses one protocol, delegates to components
+    mkdir -p projects/<name>       # a deployable: one main.go that wires components into a base
 
-A brick's public interface is the exported identifiers of its root package; its implementation is everything unexported, and `internal/` subpackages once it grows. Keep business logic in components, keep bases thin, and keep projects to `main()` plus deploy files.
+Rules in one line each (full version in `AGENTS.md`): components import only components; bases import components, never bases; a project is one `main.go` that imports at least one base and may import components to construct them; every brick is used through its root package; `internal/` is private to its brick.
 
 ## Build and deploy
-A `project` under `projects/` is the deployable unit: `go build -o bin/<name> ./projects/<name>` produces a static binary containing only the bricks that project imports. Put the Dockerfile or deploy scripts next to the project's `main.go`.
+`go build -o bin/<name> ./projects/<name>` (or `make build`) produces a static binary containing only the bricks that project imports. Put the Dockerfile or deploy scripts next to the project's `main.go`.
 
 ## Where to read more
-- New contributor: `CONTRIBUTING.md` (setup and the day-to-day loop in detail).
-- AI agent, or the full process and where every kind of context lives: `AGENTS.md`.
-- The decisions behind this setup: `docs/adr/`.
-- The in-repo tooling: `tools/poly/README.md`.
+- Contributor setup and the day-to-day loop: `CONTRIBUTING.md`.
+- The full process, the context layers, and the rules with their enforcement: `AGENTS.md`.
+- The decisions behind the setup: `docs/adr/`.
+- The in-repo tool: `tools/poly/README.md`.
 
 ## Layout
 
-    bases/         thin entry points (one per app or service)
     components/    business logic, shared across projects
-    projects/      deployable artifacts (package main plus deploy files, no business logic)
-    development/   scratch space for throwaway programs
-    docs/adr/      the decision log (and a generated per-brick index)
-    tools/poly/    the in-repo Polylith tool and the automated checks
-
-## Example bricks
-`components/greeting`, `bases/api` and `projects/hello` are examples that demonstrate the interface/implementation split and the base-to-project wiring. Delete them once you have your own.
+    bases/         thin entry points (one per kind of outside world)
+    projects/      deployables: one main.go each, plus deploy files
+    development/   scratch programs, outside ./... (go.mod ignore)
+    docs/adr/      the decision log and its generated per-brick index
+    tools/poly/    the in-repo Polylith tool and checks
 
 ## Namespace
-The module path in `go.mod` (`github.com/myorg/workspace`) is the namespace. To use your own, change it there and in every import (`grep -rl github.com/myorg/workspace . | xargs sed -i 's#github.com/myorg/workspace#<your path>#g'`).
+The module path in `go.mod` (`github.com/myorg/workspace`) is the namespace. `CONTRIBUTING.md` > Setting up the repository has the rename command.
